@@ -108,6 +108,25 @@ class LikeV1ApiE2ETest {
         return "/api/v1/users/" + uid + "/likes";
     }
 
+    /**
+     * likeCount 집계는 비동기 이벤트로 반영되므로(eventual consistency) 즉시 값이 안 맞을 수 있다.
+     * 캐시 TTL(3s)보다 넉넉한 시간 동안 폴링해서 최종적으로 수렴하는지 확인한다.
+     */
+    private void pollLikeCount(UUID pid, long expected) throws InterruptedException {
+        long deadline = System.currentTimeMillis() + 8000;
+        long actual = -1;
+        while (System.currentTimeMillis() < deadline) {
+            ResponseEntity<ApiResponse<ProductV1Dto.ProductResponse>> detail = testRestTemplate.exchange(
+                "/api/v1/products/" + pid, HttpMethod.GET, null,
+                new ParameterizedTypeReference<>() {}
+            );
+            actual = detail.getBody().data().likeCount();
+            if (actual == expected) return;
+            Thread.sleep(200);
+        }
+        assertThat(actual).isEqualTo(expected);
+    }
+
     private HttpHeaders userAuthHeaders(String loginId) {
         HttpHeaders headers = new HttpHeaders();
         headers.set("X-Loopers-LoginId", loginId);
@@ -128,7 +147,7 @@ class LikeV1ApiE2ETest {
     @Nested
     class ConcurrentLike {
 
-        @DisplayName("서로 다른 N명이 동시에 좋아요해도, like_count 가 정확히 N이 된다.")
+        @DisplayName("서로 다른 N명이 동시에 좋아요해도, like_count 가 결국 정확히 N이 된다.")
         @Test
         void likeCountAccurate_underConcurrency() throws InterruptedException {
             int users = 10;
@@ -164,14 +183,10 @@ class LikeV1ApiE2ETest {
             pool.shutdown();
             pool.awaitTermination(30, TimeUnit.SECONDS);
 
-            ResponseEntity<ApiResponse<ProductV1Dto.ProductResponse>> detail = testRestTemplate.exchange(
-                "/api/v1/products/" + productId, HttpMethod.GET, null,
-                new ParameterizedTypeReference<>() {}
-            );
-            assertThat(detail.getBody().data().likeCount()).isEqualTo((long) users);
+            pollLikeCount(productId, users);
         }
 
-        @DisplayName("같은 유저가 같은 상품에 동시에 여러번 좋아요해도, like_count 는 1 이고 모든 응답이 2xx 여야 한다. (멱등)")
+        @DisplayName("같은 유저가 같은 상품에 동시에 여러번 좋아요해도, like_count 는 결국 1 이고 모든 응답이 2xx 여야 한다. (멱등)")
         @Test
         void likeCountStaysOne_whenSameUserConcurrent() throws InterruptedException {
             int threads = 10; // setUp 에서 등록된 단일 유저(UserFixture)로 동시 요청
@@ -205,16 +220,8 @@ class LikeV1ApiE2ETest {
             pool.shutdown();
             pool.awaitTermination(30, TimeUnit.SECONDS);
 
-            ResponseEntity<ApiResponse<ProductV1Dto.ProductResponse>> detail = testRestTemplate.exchange(
-                "/api/v1/products/" + productId, HttpMethod.GET, null,
-                new ParameterizedTypeReference<>() {}
-            );
-            System.out.println("[ConcurrentLike-sameUser] 2xx=" + ok.get() + " error=" + error.get()
-                + " likeCount=" + detail.getBody().data().likeCount());
-            assertAll(
-                () -> assertThat(detail.getBody().data().likeCount()).isEqualTo(1L),
-                () -> assertThat(error.get()).isZero() // 모든 응답 2xx (멱등) — 깨지면 500 발생 의미
-            );
+            assertThat(error.get()).isZero(); // 모든 응답 2xx (멱등) — 깨지면 500 발생 의미
+            pollLikeCount(productId, 1L);
         }
     }
 
@@ -222,9 +229,9 @@ class LikeV1ApiE2ETest {
     @Nested
     class Like {
 
-        @DisplayName("좋아요 등록 시, 200 + likeCount=1을 반환한다.")
+        @DisplayName("좋아요 등록 시, 200 + productId를 반환하고 likeCount는 결국 1이 된다.")
         @Test
-        void returnsLikeCount_whenLiked() {
+        void returnsProductId_whenLiked() throws InterruptedException {
             ResponseEntity<ApiResponse<LikeV1Dto.LikeResponse>> response = testRestTemplate.exchange(
                 likeUrl(productId), HttpMethod.POST,
                 new HttpEntity<>(authHeaders()),
@@ -233,14 +240,16 @@ class LikeV1ApiE2ETest {
 
             assertAll(
                 () -> assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK),
-                () -> assertThat(response.getBody().data().likeCount()).isEqualTo(1L)
+                () -> assertThat(response.getBody().data().productId()).isEqualTo(productId)
             );
+            pollLikeCount(productId, 1L);
         }
 
-        @DisplayName("중복 좋아요 시, 200 + likeCount=1 유지 (멱등).")
+        @DisplayName("중복 좋아요 시, 200을 반환하고 likeCount는 1로 유지된다 (멱등).")
         @Test
-        void returnsIdempotent_whenDuplicateLike() {
+        void returnsIdempotent_whenDuplicateLike() throws InterruptedException {
             testRestTemplate.exchange(likeUrl(productId), HttpMethod.POST, new HttpEntity<>(authHeaders()), new ParameterizedTypeReference<>() {});
+            pollLikeCount(productId, 1L);
 
             ResponseEntity<ApiResponse<LikeV1Dto.LikeResponse>> response = testRestTemplate.exchange(
                 likeUrl(productId), HttpMethod.POST,
@@ -248,10 +257,8 @@ class LikeV1ApiE2ETest {
                 new ParameterizedTypeReference<>() {}
             );
 
-            assertAll(
-                () -> assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK),
-                () -> assertThat(response.getBody().data().likeCount()).isEqualTo(1L)
-            );
+            assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
+            pollLikeCount(productId, 1L);
         }
 
         @DisplayName("인증 헤더 없이 요청 시, 400을 반환한다.")
@@ -283,10 +290,11 @@ class LikeV1ApiE2ETest {
     @Nested
     class Unlike {
 
-        @DisplayName("좋아요 취소 시, 200 + likeCount=0을 반환한다.")
+        @DisplayName("좋아요 취소 시, 200 + productId를 반환하고 likeCount는 결국 0이 된다.")
         @Test
-        void returnsLikeCount_whenUnliked() {
+        void returnsProductId_whenUnliked() throws InterruptedException {
             testRestTemplate.exchange(likeUrl(productId), HttpMethod.POST, new HttpEntity<>(authHeaders()), new ParameterizedTypeReference<>() {});
+            pollLikeCount(productId, 1L);
 
             ResponseEntity<ApiResponse<LikeV1Dto.LikeResponse>> response = testRestTemplate.exchange(
                 likeUrl(productId), HttpMethod.DELETE,
@@ -296,23 +304,22 @@ class LikeV1ApiE2ETest {
 
             assertAll(
                 () -> assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK),
-                () -> assertThat(response.getBody().data().likeCount()).isEqualTo(0L)
+                () -> assertThat(response.getBody().data().productId()).isEqualTo(productId)
             );
+            pollLikeCount(productId, 0L);
         }
 
-        @DisplayName("없는 좋아요 취소 시, 200 + likeCount=0 유지 (멱등).")
+        @DisplayName("없는 좋아요 취소 시, 200을 반환하고 likeCount는 0으로 유지된다 (멱등).")
         @Test
-        void returnsIdempotent_whenNotLiked() {
+        void returnsIdempotent_whenNotLiked() throws InterruptedException {
             ResponseEntity<ApiResponse<LikeV1Dto.LikeResponse>> response = testRestTemplate.exchange(
                 likeUrl(productId), HttpMethod.DELETE,
                 new HttpEntity<>(authHeaders()),
                 new ParameterizedTypeReference<>() {}
             );
 
-            assertAll(
-                () -> assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK),
-                () -> assertThat(response.getBody().data().likeCount()).isEqualTo(0L)
-            );
+            assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
+            pollLikeCount(productId, 0L);
         }
     }
 

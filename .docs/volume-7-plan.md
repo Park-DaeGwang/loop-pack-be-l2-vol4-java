@@ -9,7 +9,7 @@
 ### Step 1 — ApplicationEvent
 
 - [ ] 주문–결제 플로우에서 부가 로직을 이벤트 기반으로 분리한다.
-- [ ] 좋아요 처리와 집계를 이벤트 기반으로 분리한다. (집계 실패와 무관하게 좋아요는 성공)
+- [x] 좋아요 처리와 집계를 이벤트 기반으로 분리한다. (집계 실패와 무관하게 좋아요는 성공)
 - [ ] 유저 행동(조회, 클릭, 좋아요, 주문 등)에 대한 서버 레벨 로깅을 이벤트로 처리한다.
 - [ ] 동작의 주체를 적절하게 분리하고, 트랜잭션 간의 연관관계를 고민한다.
 
@@ -71,3 +71,4 @@
 | 항목 | 상태 | 비고 |
 |---|---|---|
 | 주문-결제 부가로직 분리 (알림톡) | ✅ | 결제확정(`PaymentSyncComponent.confirm`) 커밋 후 `PaymentConfirmedEvent` 발행 → `OrderNotificationEventListener`가 `@Async("notificationExecutor")` + `@TransactionalEventListener(AFTER_COMMIT)`로 mock 알림톡(`MockAlimtalkSender`) 발송. 전용 스레드풀(core 5/max 10/queue 100, CallerRunsPolicy) 구성. 재시도 콜백 중복발송 방지 위해 `wasPending` 가드 추가 |
+| 좋아요-집계 이벤트 분리 | ✅ | `ProductLikedEvent`/`UnlikedEvent` 발행 → `ProductLikeCountEventListener`(`@Async("likeCountExecutor")` + `@TransactionalEventListener(AFTER_COMMIT)`) → `ProductLikeCountUpdater`(`@Transactional`, DB 갱신 전용 별도 빈)가 위임 처리. `LikeInfo`/`LikeV1Dto` 응답에서 `likeCount` 제거(eventual consistency라 응답 시점 정확성 보장 불가 — 프론트 낙관적 갱신 전제). 동시성 테스트에서 lost-update(9/10) 재현 → 원인 조사 끝에 DB/이벤트 레이어는 결백(순수 레이어 단독 테스트 12회 연속 통과, HTTP 상태코드 전부 200 확인) 확정, 실제 원인은 **캐시 무효화 레이스**(evict-then-stale-put — read-then-write 사이 경쟁자의 evict가 늦게 도착한 write를 못 막는 look-aside 캐싱 구조적 한계)로 특정. 좋아요는 저위험 데이터라 `PRODUCT_CACHE` TTL을 1시간→3초로 단축해 완화(근본 해결 아님, 감수). **교훈**: 고위험 데이터(재고/결제/쿠폰 수량)는 이 패턴 자체를 쓰면 안 되고 DB 조건부 UPDATE나 Redis atomic 연산처럼 카운트 자체가 authoritative해야 함 — Step3 쿠폰 발급 동시성 제어에 직접 적용할 원칙 |
