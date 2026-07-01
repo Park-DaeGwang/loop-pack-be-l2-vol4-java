@@ -13,6 +13,7 @@ import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.kafka.support.SendResult;
 
 import java.nio.charset.StandardCharsets;
+import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 
@@ -97,7 +98,7 @@ class MetricsEventPublisherTest {
             MetricsEventPublisher publisher = new MetricsEventPublisher(kafkaTemplate, new ObjectMapper());
             UUID orderId = UUID.randomUUID();
 
-            publisher.handle(new PaymentConfirmedEvent(orderId, UUID.randomUUID(), 10000L));
+            publisher.handle(new PaymentConfirmedEvent(orderId, UUID.randomUUID(), 10000L, List.of()));
 
             ProducerRecord<Object, Object> sent = captureSentRecord(kafkaTemplate);
             assertThat(sent.topic()).isEqualTo("order-events");

@@ -19,9 +19,9 @@
 - [x] `acks=all`, `idempotence=true` 설정
 - [x] Transactional Outbox Pattern 구현 (인프라는 완성, **실사용은 Step3로 이동** — 아래 판단 참고)
 - [x] PartitionKey 기반 이벤트 순서 보장 (key=productId/orderId로 파티션 고정)
-- [ ] Consumer가 Metrics 집계 처리 (product_metrics upsert)
-- [ ] `event_handled` 테이블을 통한 멱등 처리 구현
-- [ ] manual Ack + `version`/`updated_at` 기준 최신 이벤트만 반영
+- [x] Consumer가 Metrics 집계 처리 (product_metrics upsert)
+- [x] `event_handled` 테이블을 통한 멱등 처리 구현
+- [x] manual Ack + `version`/`updated_at` 기준 최신 이벤트만 반영 (`lastEventAt` 필드로 staleness 체크)
 
 ### Step 3 — 선착순 쿠폰 발급
 
@@ -81,3 +81,5 @@
 | 이벤트 타입 구분(Kafka 헤더) + ProductViewedEvent 발행 추가 | ✅ | `catalog-events` 토픽 하나에 `ProductLikedEvent`/`UnlikedEvent`/`ViewedEvent` 3종이 같이 나가는데, 세 이벤트가 필드 구조가 같거나 겹쳐서 payload JSON만으로는 컨슈머가 타입을 구분 못 하는 문제 발견 (`ProducerRecord`로 바꿔 Kafka **헤더**에 `eventType`(클래스 simpleName)을 실어 해결 — 봉투(envelope)/토픽 분리안도 검토했으나 헤더가 payload 구조를 안 건드리는 쪽이라 채택). `ProductViewedEvent`가 애초에 Kafka로 발행 안 되고 있던 것도 이번에 같이 추가(조회수 집계에 필요) |
 | event_handled 멱등키 — eventId 필드 추가 | ✅ | `topic+partition+offset` 조합안도 검토했으나(producer 무변경 장점) "동일 논리 이벤트 추적"엔 이벤트 자체가 정체성을 갖는 게 낫다고 판단해 각 이벤트 record에 `eventId(UUID)` 필드 추가. 기존 발행부(`ProductLikeService` 등)와 테스트 전부 안 건드리게 보조 생성자(`this(UUID.randomUUID(), ...)`)로 자동 생성 — 컴파일/테스트 전부 그대로 통과 확인 |
 | Producer 설정 + 실제 발행 | ✅ | `commerce-api`가 `modules:kafka`에 의존 안 하고 있었음을 발견해 의존성 추가(main+testFixtures). `kafka.yml` producer에 `acks=all`, `enable.idempotence=true` 추가, `value-serializer`를 `JsonSerializer`→`StringSerializer`로 변경(Outbox payload가 이미 JSON 문자열이라 JsonSerializer 쓰면 이중 직렬화됨). `OutboxPublisher`(`@Scheduled(fixedDelay=1000)`)가 미발행 이벤트를 배치(100건)로 조회해 Kafka 전송 후 성공 시에만 `markPublished`. Kafka 전송(네트워크 I/O)은 트랜잭션 밖에서 수행, 성공 확인 후 별도 트랜잭션으로 상태 갱신. `modules/kafka`에 Testcontainers 설정(`KafkaTestContainersConfig`)이 아예 없었어서 Redis/JPA와 동일 패턴으로 신설 — **디버깅**: 생성자에서 `System.setProperty` 하는 방식이 빈 생성 순서 문제로 타이밍에 안 먹혀서, 로컬에 떠있던 진짜 docker-compose Kafka로 잘못 연결되는 문제 발생 → static 블록으로 이동해서 해결. **회귀 발견**: 좋아요-집계 비동기화 이후 전체 스위트를 안 돌려서 놓쳤던 `ProductServiceCacheIntegrationTest`(캐시 evict 동기 가정), `ProductV1ApiE2ETest`(좋아요 정렬 즉시 반영 가정) 2개 테스트 파일을 폴링 방식으로 수정 |
+| PaymentConfirmedEvent에 주문 아이템 정보 추가 | ✅ | `product_metrics.salesCount`는 상품별 집계인데 `PaymentConfirmedEvent`엔 orderId만 있고 productId가 없어 컨슈머가 어느 상품 판매량을 올려야 할지 알 수 없는 설계 구멍 발견. `PaymentConfirmedEvent`에 `items(List<OrderItemSummary(productId, quantity)>)` 필드 추가, `PaymentSyncComponent.confirm()`에서 `order.getItems()`로 채워 발행하도록 수정 |
+| Consumer 구현 (`commerce-streamer`) | ✅ | `product_metrics`(productId/likeCount/viewCount/salesCount/lastEventAt), `event_handled`(eventId PK, `BaseEntity` 미상속 — 자동생성 id 대신 eventId 자체가 자연키라 의도적 이탈)를 신설. `ProductMetricsService`를 `applyIfNotHandled`(이벤트 단위 멱등체크+커밋)와 `applyToProduct`(상품 단위 staleness체크+갱신, 자체 멱등체크 없음)로 분리 — 주문 하나가 상품 여러 개를 포함할 수 있어 멱등체크를 상품 단위로 하면 다상품 주문에서 첫 상품만 반영되고 나머지가 "이미 처리됨"으로 오판되어 스킵되는 버그가 생기기 때문. `CatalogEventsConsumer`/`OrderEventsConsumer`는 기존 `DemoKafkaConsumer` 패턴(batch listener + manual ack) 그대로, 헤더의 `eventType`으로 분기. DLQ는 nice-to-have라 스킵(사유: 저위험 데이터라 재시도/DLQ 운영비용 대비 실익 낮음). **디버깅**: 실제 Kafka로 붙는 통합테스트가 간헐 실패 — 원인은 `auto.offset.reset=latest`(기본값)가 테스트 프로듀서의 발행보다 컨슈머 구독 완료가 늦을 때 그 메시지를 건너뛰는 레이스. `test` 프로파일에서만 `earliest`로 override해서 해결(local/prod 영향 없음). `commerce-streamer`의 `spring.application.name`이 `commerce-api`로 복붙돼있던 오타도 같이 수정 |

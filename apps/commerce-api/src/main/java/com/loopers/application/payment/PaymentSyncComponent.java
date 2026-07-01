@@ -13,6 +13,7 @@ import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.List;
 import java.util.UUID;
 
 @Component
@@ -35,7 +36,10 @@ public class PaymentSyncComponent {
             new PaymentModel(orderId, pgTransactionId, PaymentStatus.SUCCESS, amount)
         );
         if (wasPending) {
-            eventPublisher.publishEvent(new PaymentConfirmedEvent(orderId, order.getUserId(), amount));
+            List<PaymentConfirmedEvent.OrderItemSummary> items = order.getItems().stream()
+                .map(item -> new PaymentConfirmedEvent.OrderItemSummary(item.getProductId(), item.getQuantity()))
+                .toList();
+            eventPublisher.publishEvent(new PaymentConfirmedEvent(orderId, order.getUserId(), amount, items));
         }
         return PaymentInfo.from(payment);
     }

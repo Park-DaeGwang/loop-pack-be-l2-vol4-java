@@ -5,6 +5,7 @@ import com.loopers.domain.payment.PaymentConfirmedEvent;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
+import java.util.List;
 import java.util.UUID;
 
 import static org.mockito.Mockito.mock;
@@ -23,7 +24,7 @@ class OrderNotificationEventListenerTest {
             OrderNotificationEventListener listener = new OrderNotificationEventListener(alimtalkSender);
             UUID orderId = UUID.randomUUID();
             UUID userId = UUID.randomUUID();
-            PaymentConfirmedEvent event = new PaymentConfirmedEvent(orderId, userId, 10000L);
+            PaymentConfirmedEvent event = new PaymentConfirmedEvent(orderId, userId, 10000L, List.of());
 
             // act
             listener.handle(event);
