@@ -1,5 +1,6 @@
 package com.loopers.interfaces.api;
 
+import com.loopers.domain.notification.AlimtalkSender;
 import com.loopers.domain.pg.PgGateway;
 import com.loopers.domain.pg.PgTransactionResult;
 import com.loopers.domain.pg.PgTransactionStatus;
@@ -36,6 +37,9 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertAll;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.BDDMockito.given;
+import static org.mockito.Mockito.timeout;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
 class PaymentV1ApiE2ETest {
@@ -52,6 +56,9 @@ class PaymentV1ApiE2ETest {
 
     @MockBean
     private PgGateway pgGateway;
+
+    @MockBean
+    private AlimtalkSender alimtalkSender;
 
     @Autowired
     private DatabaseCleanUp databaseCleanUp;
@@ -206,6 +213,7 @@ class PaymentV1ApiE2ETest {
                 new ParameterizedTypeReference<>() {}
             );
             assertThat(orderResp.getBody().data().status().name()).isEqualTo("CONFIRMED");
+            verify(alimtalkSender, timeout(2000)).sendOrderCompleted(userId, orderId, amount);
         }
 
         @DisplayName("FAILED 콜백이면, 200 + 주문이 FAILED 된다.")
@@ -235,6 +243,7 @@ class PaymentV1ApiE2ETest {
                 new ParameterizedTypeReference<>() {}
             );
             assertThat(orderResp.getBody().data().status().name()).isEqualTo("FAILED");
+            verifyNoInteractions(alimtalkSender);
         }
 
         @DisplayName("금액 불일치 SUCCESS 콜백이면, 400을 반환한다.")
