@@ -20,6 +20,8 @@ public interface UserCouponJpaRepository extends JpaRepository<UserCouponModel, 
 
     Page<UserCouponModel> findByTemplateId(UUID templateId, Pageable pageable);
 
+    boolean existsByUserIdAndTemplateId(UUID userId, UUID templateId);
+
     // 조건부 UPDATE — AVAILABLE 일 때만 USED 로 전이 (동시 이중사용 방지).
     // plain @Modifying (clearAutomatically=false): 미flush된 order 가 1LC 에서 detach 되는 것 방지
     @Modifying

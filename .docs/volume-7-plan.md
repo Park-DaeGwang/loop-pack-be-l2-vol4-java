@@ -25,10 +25,10 @@
 
 ### Step 3 — 선착순 쿠폰 발급
 
-- [ ] 쿠폰 발급 요청 API → Kafka 발행 (비동기 처리) — **Outbox 패턴 여기서 실사용** (요청 유실 시 유저가 알 방법이 없는 진짜 중요 케이스)
-- [ ] Consumer에서 선착순 수량 제한 + 중복 발급 방지 구현
-- [ ] 발급 완료/실패 결과를 유저가 확인할 수 있는 구조 설계 (polling or callback)
-- [ ] 동시성 테스트 — 수량 초과 발급이 발생하지 않는지 검증
+- [x] 쿠폰 발급 요청 API → Kafka 발행 (비동기 처리) — **Outbox 패턴 여기서 실사용** (요청 유실 시 유저가 알 방법이 없는 진짜 중요 케이스)
+- [x] Consumer에서 선착순 수량 제한 + 중복 발급 방지 구현
+- [x] 발급 완료/실패 결과를 유저가 확인할 수 있는 구조 설계 (polling)
+- [x] 동시성 테스트 — 수량 초과 발급이 발생하지 않는지 검증
 
 ### Nice-to-have (여유 있으면)
 
@@ -48,7 +48,7 @@
 
 ## 미정 사항 (진행하면서 결정)
 
-- 쿠폰 선착순 동시성 제어 방식: DB 조건부 UPDATE / Redis INCR / Kafka 파티션 단일화 중 미정
+- ~~쿠폰 선착순 동시성 제어 방식~~ → **DB 조건부 UPDATE**로 확정 (좋아요 집계 캐시 레이스 교훈 적용, 고위험 카운트는 DB가 authoritative해야 함)
 
 ---
 
@@ -83,3 +83,8 @@
 | Producer 설정 + 실제 발행 | ✅ | `commerce-api`가 `modules:kafka`에 의존 안 하고 있었음을 발견해 의존성 추가(main+testFixtures). `kafka.yml` producer에 `acks=all`, `enable.idempotence=true` 추가, `value-serializer`를 `JsonSerializer`→`StringSerializer`로 변경(Outbox payload가 이미 JSON 문자열이라 JsonSerializer 쓰면 이중 직렬화됨). `OutboxPublisher`(`@Scheduled(fixedDelay=1000)`)가 미발행 이벤트를 배치(100건)로 조회해 Kafka 전송 후 성공 시에만 `markPublished`. Kafka 전송(네트워크 I/O)은 트랜잭션 밖에서 수행, 성공 확인 후 별도 트랜잭션으로 상태 갱신. `modules/kafka`에 Testcontainers 설정(`KafkaTestContainersConfig`)이 아예 없었어서 Redis/JPA와 동일 패턴으로 신설 — **디버깅**: 생성자에서 `System.setProperty` 하는 방식이 빈 생성 순서 문제로 타이밍에 안 먹혀서, 로컬에 떠있던 진짜 docker-compose Kafka로 잘못 연결되는 문제 발생 → static 블록으로 이동해서 해결. **회귀 발견**: 좋아요-집계 비동기화 이후 전체 스위트를 안 돌려서 놓쳤던 `ProductServiceCacheIntegrationTest`(캐시 evict 동기 가정), `ProductV1ApiE2ETest`(좋아요 정렬 즉시 반영 가정) 2개 테스트 파일을 폴링 방식으로 수정 |
 | PaymentConfirmedEvent에 주문 아이템 정보 추가 | ✅ | `product_metrics.salesCount`는 상품별 집계인데 `PaymentConfirmedEvent`엔 orderId만 있고 productId가 없어 컨슈머가 어느 상품 판매량을 올려야 할지 알 수 없는 설계 구멍 발견. `PaymentConfirmedEvent`에 `items(List<OrderItemSummary(productId, quantity)>)` 필드 추가, `PaymentSyncComponent.confirm()`에서 `order.getItems()`로 채워 발행하도록 수정 |
 | Consumer 구현 (`commerce-streamer`) | ✅ | `product_metrics`(productId/likeCount/viewCount/salesCount/lastEventAt), `event_handled`(eventId PK, `BaseEntity` 미상속 — 자동생성 id 대신 eventId 자체가 자연키라 의도적 이탈)를 신설. `ProductMetricsService`를 `applyIfNotHandled`(이벤트 단위 멱등체크+커밋)와 `applyToProduct`(상품 단위 staleness체크+갱신, 자체 멱등체크 없음)로 분리 — 주문 하나가 상품 여러 개를 포함할 수 있어 멱등체크를 상품 단위로 하면 다상품 주문에서 첫 상품만 반영되고 나머지가 "이미 처리됨"으로 오판되어 스킵되는 버그가 생기기 때문. `CatalogEventsConsumer`/`OrderEventsConsumer`는 기존 `DemoKafkaConsumer` 패턴(batch listener + manual ack) 그대로, 헤더의 `eventType`으로 분기. DLQ는 nice-to-have라 스킵(사유: 저위험 데이터라 재시도/DLQ 운영비용 대비 실익 낮음). **디버깅**: 실제 Kafka로 붙는 통합테스트가 간헐 실패 — 원인은 `auto.offset.reset=latest`(기본값)가 테스트 프로듀서의 발행보다 컨슈머 구독 완료가 늦을 때 그 메시지를 건너뛰는 레이스. `test` 프로파일에서만 `earliest`로 override해서 해결(local/prod 영향 없음). `commerce-streamer`의 `spring.application.name`이 `commerce-api`로 복붙돼있던 오타도 같이 수정 |
+| 선착순 쿠폰 — 수량 제한 필드 + 조건부 UPDATE | ✅ | `CouponTemplateModel`에 `totalQuantity`(무제한이면 null)/`issuedCount` 추가, `isLimited()`로 무제한/제한 구분. `CouponTemplateJpaRepository.tryIssue()`를 `@Modifying(flushAutomatically=true, clearAutomatically=true)` JPQL 조건부 UPDATE(`issuedCount<totalQuantity`일 때만 증가)로 구현 — 좋아요 집계에서 얻은 교훈(look-aside 캐시는 고위험 카운트에 부적합) 그대로 적용해 DB 원자적 UPDATE로 authoritative하게 처리. 기존 `issue()`(즉시발급)엔 `template.isLimited()`면 `CoreException(BAD_REQUEST)` 가드 추가 — 제한 쿠폰은 반드시 비동기 경로로만 발급되게 강제 |
+| 선착순 쿠폰 — 비동기 발급 요청/컨슈머/조회 API | ✅ | `CouponIssueRequestModel`(PENDING/SUCCESS/FAILED, `succeed(userCouponId)`/`fail(reason)`)을 요청 시점에 즉시 생성해 `requestId` 반환, 실제 발급 처리는 `CouponIssueRequestedEvent`를 `CouponOutboxEventListener`(같은 트랜잭션의 평범한 `@EventListener` — 진짜 Outbox 사용처)가 `coupon-issue-requests` 토픽(key=templateId, 같은 쿠폰 요청은 항상 같은 파티션→순차 처리 보장)에 기록 → `OutboxPublisher`가 발행 → `CouponIssueConsumer`가 `CouponIssueProcessingService.process()`(eventId 멱등체크, 중복발급 사전체크, `tryIssue()`, 성공 시 `UserCouponModel` 발급) 호출. 유저는 `GET /issue-requests/{requestId}`를 폴링해 결과 확인. commerce-api 자체 `event_handled` 테이블 신설(streamer와 별개) |
+| **버그**: `spring.config.import`에 `kafka.yml` 누락 | ✅ | `apps/commerce-api/application.yml`이 `modules:kafka` Gradle 의존성만 추가돼있고 `spring.config.import`엔 `kafka.yml`이 없었음 — 이 세션 내내 `kafka.yml`의 모든 설정(acks/idempotence/group-id 등)이 commerce-api엔 적용된 적이 없었다는 뜻. `CouponIssueConsumer`(commerce-api 최초의 `@KafkaListener`)를 붙이자마자 "No group.id found" 컨텍스트 기동 실패로 표면화. `import` 목록에 `kafka.yml` 추가해서 해결 |
+| **버그**: `WebMvcConfig` 인터셉터 경로 누락 | ✅ | 신규 엔드포인트 `/api/v1/coupons/*/issue-requests`, `/api/v1/coupons/issue-requests/*`가 `authInterceptor.addPathPatterns(...)`에 빠져있어 동시성 테스트의 10개 동시 요청이 전부 "Missing request attribute 'authenticatedUser'"로 실패(`requestIdsByUser` 비어있음). 경로 패턴 추가해서 해결 |
+| **버그**: `tryIssue()`의 `clearAutomatically`로 인한 상태 갱신 유실 | ✅ | 위 두 버그를 고친 뒤에도 동시성 테스트가 전부 PENDING에서 타임아웃. Hibernate SQL 로그 포렌식(grep)으로 `issued_count` UPDATE/`user_coupons` INSERT/`event_handled` INSERT는 5:5로 정확히 일어났는데 `coupon_issue_requests` UPDATE는 **단 한 번도** 안 나간 걸 확인. 원인: `tryIssue()` 호출 전에 조회해둔 `request` 엔티티가, `tryIssue()`의 `clearAutomatically=true`가 1차 캐시를 통째로 비우면서 detach됨 → 이후 `request.succeed()`/`.fail()`은 dirty checking 대상이 아니라 조용히 유실. `OrderFacade.create()`에 이미 있던 동일 패턴("1LC에서 detach된 order 재조회")을 그대로 적용 — `tryIssue()` 직후 `request`를 `couponIssueRequestService.get(requestId)`로 재조회하도록 수정. 동시성 테스트 3연속 통과로 확인(정확히 5 SUCCESS / 5 FAILED, failReason="매진되었습니다.") |

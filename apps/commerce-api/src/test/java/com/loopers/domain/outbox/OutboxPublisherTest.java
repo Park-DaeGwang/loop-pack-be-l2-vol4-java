@@ -1,5 +1,6 @@
 package com.loopers.domain.outbox;
 
+import org.apache.kafka.clients.producer.ProducerRecord;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.kafka.core.KafkaTemplate;
@@ -29,7 +30,7 @@ class OutboxPublisherTest {
             KafkaTemplate<Object, Object> kafkaTemplate = mock(KafkaTemplate.class);
             OutboxEventModel event = new OutboxEventModel("catalog-events", UUID.randomUUID().toString(), "ProductLikedEvent", "{}");
             when(outboxEventService.findUnpublished(100)).thenReturn(List.of(event));
-            when(kafkaTemplate.send(any(String.class), any(), any()))
+            when(kafkaTemplate.send(any(ProducerRecord.class)))
                 .thenReturn(CompletableFuture.completedFuture(mock(SendResult.class)));
             OutboxPublisher publisher = new OutboxPublisher(outboxEventService, kafkaTemplate);
 
@@ -51,7 +52,7 @@ class OutboxPublisherTest {
             when(outboxEventService.findUnpublished(100)).thenReturn(List.of(event));
             CompletableFuture<SendResult<Object, Object>> failed = new CompletableFuture<>();
             failed.completeExceptionally(new RuntimeException("broker unavailable"));
-            when(kafkaTemplate.send(any(String.class), any(), any())).thenReturn(failed);
+            when(kafkaTemplate.send(any(ProducerRecord.class))).thenReturn(failed);
             OutboxPublisher publisher = new OutboxPublisher(outboxEventService, kafkaTemplate);
 
             // act

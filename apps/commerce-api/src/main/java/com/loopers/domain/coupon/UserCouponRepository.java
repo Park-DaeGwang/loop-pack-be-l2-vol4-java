@@ -23,6 +23,9 @@ public interface UserCouponRepository {
     /** 템플릿별 발급 내역 (어드민) */
     Page<UserCouponModel> findByTemplateId(UUID templateId, Pageable pageable);
 
+    /** 중복 발급 여부 확인 */
+    boolean existsByUserIdAndTemplateId(UUID userId, UUID templateId);
+
     /** 조건부 사용 — AVAILABLE 일 때만 USED 전이. 반환=영향 행 수(0이면 이미 사용) */
     int useIfAvailable(UUID id, UUID orderId, ZonedDateTime usedAt);
 

@@ -14,7 +14,9 @@ public record CouponInfo(
     Long minOrderAmount,
     ZonedDateTime expiredAt,
     ZonedDateTime createdAt,
-    ZonedDateTime deletedAt
+    ZonedDateTime deletedAt,
+    Long totalQuantity,
+    long issuedCount
 ) {
 
     public static CouponInfo from(CouponTemplateModel model) {
@@ -26,7 +28,9 @@ public record CouponInfo(
             model.getMinOrderAmount(),
             model.getExpiredAt(),
             model.getCreatedAt(),
-            model.getDeletedAt()
+            model.getDeletedAt(),
+            model.getTotalQuantity(),
+            model.getIssuedCount()
         );
     }
 }

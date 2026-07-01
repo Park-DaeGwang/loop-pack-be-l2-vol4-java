@@ -36,22 +36,42 @@ public class CouponTemplateModel extends BaseEntity {
     @Column(name = "expired_at", nullable = false)
     private ZonedDateTime expiredAt;
 
+    @Column(name = "total_quantity")
+    private Long totalQuantity; // null이면 무제한(동기 발급), 값이 있으면 선착순(비동기 발급)
+
+    @Column(name = "issued_count", nullable = false)
+    private long issuedCount = 0;
+
     public CouponTemplateModel(String name, CouponType type, Long value, Long minOrderAmount, ZonedDateTime expiredAt) {
+        this(name, type, value, minOrderAmount, expiredAt, null);
+    }
+
+    public CouponTemplateModel(String name, CouponType type, Long value, Long minOrderAmount, ZonedDateTime expiredAt, Long totalQuantity) {
         validate(name, type, value, expiredAt);
         this.name = name;
         this.type = type;
         this.value = value;
         this.minOrderAmount = minOrderAmount;
         this.expiredAt = expiredAt;
+        this.totalQuantity = totalQuantity;
     }
 
     public void update(String name, CouponType type, Long value, Long minOrderAmount, ZonedDateTime expiredAt) {
+        update(name, type, value, minOrderAmount, expiredAt, this.totalQuantity);
+    }
+
+    public void update(String name, CouponType type, Long value, Long minOrderAmount, ZonedDateTime expiredAt, Long totalQuantity) {
         validate(name, type, value, expiredAt);
         this.name = name;
         this.type = type;
         this.value = value;
         this.minOrderAmount = minOrderAmount;
         this.expiredAt = expiredAt;
+        this.totalQuantity = totalQuantity;
+    }
+
+    public boolean isLimited() {
+        return totalQuantity != null;
     }
 
     public boolean isExpired(ZonedDateTime now) {

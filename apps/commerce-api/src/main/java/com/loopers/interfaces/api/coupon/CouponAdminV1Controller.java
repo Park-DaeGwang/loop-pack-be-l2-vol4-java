@@ -30,7 +30,7 @@ public class CouponAdminV1Controller implements CouponAdminV1ApiSpec {
     @PostMapping
     @Override
     public ApiResponse<CouponV1Dto.TemplateResponse> create(@RequestBody @Valid CouponV1Dto.CreateRequest request) {
-        CouponInfo info = couponFacade.create(request.name(), request.type(), request.value(), request.minOrderAmount(), request.expiredAt());
+        CouponInfo info = couponFacade.create(request.name(), request.type(), request.value(), request.minOrderAmount(), request.expiredAt(), request.totalQuantity());
         return ApiResponse.success(CouponV1Dto.TemplateResponse.from(info));
     }
 
