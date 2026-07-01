@@ -91,6 +91,22 @@ class ProductV1ApiE2ETest {
         );
     }
 
+    /** likeCount 집계는 비동기 이벤트로 반영되므로(eventual consistency), 폴링으로 최종 값이 맞는지 확인한다. */
+    private void pollLikeCount(UUID productId, long expected) throws InterruptedException {
+        long deadline = System.currentTimeMillis() + 8000;
+        long actual = -1;
+        while (System.currentTimeMillis() < deadline) {
+            ResponseEntity<ApiResponse<ProductV1Dto.ProductResponse>> detail = testRestTemplate.exchange(
+                CUSTOMER_URL + "/" + productId, HttpMethod.GET, null,
+                new ParameterizedTypeReference<>() {}
+            );
+            actual = detail.getBody().data().likeCount();
+            if (actual == expected) return;
+            Thread.sleep(200);
+        }
+        assertThat(actual).isEqualTo(expected);
+    }
+
     @DisplayName("GET /api/v1/products/{id}")
     @Nested
     class GetActive {
@@ -245,7 +261,7 @@ class ProductV1ApiE2ETest {
 
         @DisplayName("sort=likes_desc 로 조회 시, 좋아요 내림차순으로 정렬된다.")
         @Test
-        void returnsSortedByLikesDesc() {
+        void returnsSortedByLikesDesc() throws InterruptedException {
             // arrange
             UUID brandId = createBrand();
             createProduct(brandId);
@@ -257,6 +273,7 @@ class ProductV1ApiE2ETest {
                 new HttpEntity<>(authHeaders()),
                 new ParameterizedTypeReference<>() {}
             );
+            pollLikeCount(likedProductId, 1L); // likeCount 집계는 비동기라 정렬 확인 전에 반영을 기다린다
 
             // act
             ResponseEntity<ApiResponse<PageResponse<ProductV1Dto.ProductResponse>>> response = testRestTemplate.exchange(
