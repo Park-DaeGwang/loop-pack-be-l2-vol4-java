@@ -14,23 +14,25 @@ public class AsyncConfig {
 
     @Bean(name = "notificationExecutor")
     public Executor notificationExecutor() {
-        ThreadPoolTaskExecutor executor = new ThreadPoolTaskExecutor();
-        executor.setCorePoolSize(5);
-        executor.setMaxPoolSize(10);
-        executor.setQueueCapacity(100);
-        executor.setThreadNamePrefix("notification-");
-        executor.setRejectedExecutionHandler(new ThreadPoolExecutor.CallerRunsPolicy());
-        executor.initialize();
-        return executor;
+        return buildExecutor("notification-", 5, 10, 100);
     }
 
     @Bean(name = "likeCountExecutor")
     public Executor likeCountExecutor() {
+        return buildExecutor("like-count-", 5, 10, 200);
+    }
+
+    @Bean(name = "kafkaEventExecutor")
+    public Executor kafkaEventExecutor() {
+        return buildExecutor("kafka-event-", 5, 10, 200);
+    }
+
+    private Executor buildExecutor(String threadNamePrefix, int corePoolSize, int maxPoolSize, int queueCapacity) {
         ThreadPoolTaskExecutor executor = new ThreadPoolTaskExecutor();
-        executor.setCorePoolSize(5);
-        executor.setMaxPoolSize(10);
-        executor.setQueueCapacity(200);
-        executor.setThreadNamePrefix("like-count-");
+        executor.setCorePoolSize(corePoolSize);
+        executor.setMaxPoolSize(maxPoolSize);
+        executor.setQueueCapacity(queueCapacity);
+        executor.setThreadNamePrefix(threadNamePrefix);
         executor.setRejectedExecutionHandler(new ThreadPoolExecutor.CallerRunsPolicy());
         executor.initialize();
         return executor;
