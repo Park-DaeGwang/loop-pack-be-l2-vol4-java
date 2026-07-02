@@ -7,7 +7,6 @@ spring:
         request.timeout.ms: 20000
         retry.backoff.ms: 500
         auto:
-          create.topics.enable: false
           register.schemas: false
           offset.reset: latest
         use.latest.version: true

@@ -1,6 +1,7 @@
 package com.loopers.confg.kafka;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import org.apache.kafka.clients.admin.NewTopic;
 import org.apache.kafka.clients.consumer.ConsumerConfig;
 import org.springframework.boot.autoconfigure.kafka.KafkaProperties;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
@@ -8,6 +9,7 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.kafka.annotation.EnableKafka;
 import org.springframework.kafka.config.ConcurrentKafkaListenerContainerFactory;
+import org.springframework.kafka.config.TopicBuilder;
 import org.springframework.kafka.core.*;
 import org.springframework.kafka.listener.ContainerProperties;
 import org.springframework.kafka.support.converter.BatchMessagingMessageConverter;
@@ -28,6 +30,35 @@ public class KafkaConfig {
     public static final int SESSION_TIMEOUT_MS = 60 * 1000; // session timeout = 1m
     public static final int HEARTBEAT_INTERVAL_MS = 20 * 1000; // heartbeat interval = 20s ( 1/3 of session_timeout )
     public static final int MAX_POLL_INTERVAL_MS = 2 * 60 * 1000; // max poll interval = 2m
+
+    // 토픽 파티션 수 — concurrency=3과 맞춤. key 기반 라우팅(productId/orderId/templateId)으로
+    // 개별 엔티티 순서는 파티션 수와 무관하게 보장되므로, 쿠폰 토픽도 동일하게 3개로 둔다.
+    private static final int DEFAULT_PARTITIONS = 3;
+    private static final short DEFAULT_REPLICATION_FACTOR = 1; // 로컬 단일 브로커
+
+    @Bean
+    public NewTopic catalogEventsTopic() {
+        return TopicBuilder.name("catalog-events")
+            .partitions(DEFAULT_PARTITIONS)
+            .replicas(DEFAULT_REPLICATION_FACTOR)
+            .build();
+    }
+
+    @Bean
+    public NewTopic orderEventsTopic() {
+        return TopicBuilder.name("order-events")
+            .partitions(DEFAULT_PARTITIONS)
+            .replicas(DEFAULT_REPLICATION_FACTOR)
+            .build();
+    }
+
+    @Bean
+    public NewTopic couponIssueRequestsTopic() {
+        return TopicBuilder.name("coupon-issue-requests")
+            .partitions(DEFAULT_PARTITIONS)
+            .replicas(DEFAULT_REPLICATION_FACTOR)
+            .build();
+    }
 
     @Bean
     public ProducerFactory<Object, Object> producerFactory(KafkaProperties kafkaProperties) {
