@@ -30,7 +30,7 @@ public class CatalogEventsConsumer {
     private final ProductMetricsService productMetricsService;
     private final ObjectMapper objectMapper;
 
-    @KafkaListener(topics = "catalog-events", containerFactory = KafkaConfig.BATCH_LISTENER)
+    @KafkaListener(topics = "catalog-events", groupId = "catalog-metrics-consumer", containerFactory = KafkaConfig.BATCH_LISTENER)
     public void consume(List<ConsumerRecord<Object, Object>> records, Acknowledgment acknowledgment) {
         for (int i = 0; i < records.size(); i++) {
             ConsumerRecord<Object, Object> record = records.get(i);

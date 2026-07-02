@@ -27,7 +27,7 @@ public class CouponIssueConsumer {
     private final CouponIssueProcessingService couponIssueProcessingService;
     private final ObjectMapper objectMapper;
 
-    @KafkaListener(topics = "coupon-issue-requests", containerFactory = KafkaConfig.BATCH_LISTENER)
+    @KafkaListener(topics = "coupon-issue-requests", groupId = "coupon-issue-consumer", containerFactory = KafkaConfig.BATCH_LISTENER)
     public void consume(List<ConsumerRecord<Object, Object>> records, Acknowledgment acknowledgment) {
         for (int i = 0; i < records.size(); i++) {
             ConsumerRecord<Object, Object> record = records.get(i);
