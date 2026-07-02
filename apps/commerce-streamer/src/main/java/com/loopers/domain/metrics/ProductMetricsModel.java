@@ -36,7 +36,11 @@ public class ProductMetricsModel extends BaseEntity {
         this.productId = productId;
     }
 
-    /** Kafka 파티션 순서 보장은 되지만, 리밸런스/재처리 등으로 뒤늦게 온 오래된 이벤트를 걸러내는 안전장치 */
+    /**
+     * Kafka 파티션 순서 보장은 되지만, 리밸런스/재처리 등으로 뒤늦게 온 오래된 이벤트를 걸러내는 안전장치.
+     * like/unlike처럼 서로의 역연산이라 순서가 결과에 영향을 주는 연산에만 적용한다 — view/sales처럼
+     * 단순 누적(교환법칙 성립)이라 순서와 무관한 연산에는 적용하지 않는다(적용하면 정상 이벤트가 부당하게 유실됨).
+     */
     public boolean isStale(ZonedDateTime eventTime) {
         return lastEventAt != null && !eventTime.isAfter(lastEventAt);
     }
@@ -51,13 +55,11 @@ public class ProductMetricsModel extends BaseEntity {
         this.lastEventAt = eventTime;
     }
 
-    public void incrementView(ZonedDateTime eventTime) {
+    public void incrementView() {
         this.viewCount++;
-        this.lastEventAt = eventTime;
     }
 
-    public void incrementSales(ZonedDateTime eventTime) {
+    public void incrementSales() {
         this.salesCount++;
-        this.lastEventAt = eventTime;
     }
 }

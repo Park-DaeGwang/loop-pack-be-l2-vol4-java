@@ -10,6 +10,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.ZonedDateTime;
 import java.util.UUID;
 import java.util.function.BiConsumer;
+import java.util.function.Consumer;
 
 @Slf4j
 @RequiredArgsConstructor
@@ -44,6 +45,15 @@ public class ProductMetricsService {
             return;
         }
         operation.accept(metrics, eventTime);
+        productMetricsRepository.save(metrics);
+    }
+
+    /** view/sales처럼 단순 누적이라 순서와 무관한 연산용 — staleness 체크 없이 항상 반영한다. */
+    public void applyToProductUnordered(UUID productId, Consumer<ProductMetricsModel> operation) {
+        ProductMetricsModel metrics = productMetricsRepository.findByProductId(productId)
+            .orElseGet(() -> new ProductMetricsModel(productId));
+
+        operation.accept(metrics);
         productMetricsRepository.save(metrics);
     }
 }

@@ -93,4 +93,40 @@ class ProductMetricsServiceTest {
             verify(productMetricsRepository, never()).save(any());
         }
     }
+
+    @DisplayName("applyToProductUnordered")
+    @Nested
+    class ApplyToProductUnordered {
+
+        @DisplayName("신규 상품이면, 새로 생성해서 operation을 적용하고 저장한다.")
+        @Test
+        void createsAndSaves_whenProductMetricsNotExists() {
+            ProductMetricsRepository productMetricsRepository = mock(ProductMetricsRepository.class);
+            EventHandledRepository eventHandledRepository = mock(EventHandledRepository.class);
+            ProductMetricsService service = new ProductMetricsService(productMetricsRepository, eventHandledRepository);
+            UUID productId = UUID.randomUUID();
+            when(productMetricsRepository.findByProductId(productId)).thenReturn(Optional.empty());
+
+            service.applyToProductUnordered(productId, ProductMetricsModel::incrementView);
+
+            verify(productMetricsRepository).save(any());
+        }
+
+        @DisplayName("이전 이벤트보다 시간상 앞선 이벤트여도, staleness 체크 없이 항상 반영한다.")
+        @Test
+        void alwaysApplies_regardlessOfOrder() {
+            ProductMetricsRepository productMetricsRepository = mock(ProductMetricsRepository.class);
+            EventHandledRepository eventHandledRepository = mock(EventHandledRepository.class);
+            ProductMetricsService service = new ProductMetricsService(productMetricsRepository, eventHandledRepository);
+            UUID productId = UUID.randomUUID();
+            ProductMetricsModel existing = new ProductMetricsModel(productId);
+            existing.incrementLike(ZonedDateTime.now()); // lastEventAt을 미래 시점으로 미리 세팅
+            when(productMetricsRepository.findByProductId(productId)).thenReturn(Optional.of(existing));
+
+            service.applyToProductUnordered(productId, ProductMetricsModel::incrementView);
+
+            assertThat(existing.getViewCount()).isEqualTo(1);
+            verify(productMetricsRepository).save(existing);
+        }
+    }
 }

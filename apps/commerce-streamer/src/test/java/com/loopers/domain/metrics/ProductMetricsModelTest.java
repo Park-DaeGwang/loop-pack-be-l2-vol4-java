@@ -37,24 +37,26 @@ class ProductMetricsModelTest {
             assertThat(metrics.getLikeCount()).isZero();
         }
 
-        @DisplayName("incrementView 호출 시, viewCount가 1 증가한다.")
+        @DisplayName("incrementView 호출 시, viewCount가 1 증가하고 lastEventAt은 갱신되지 않는다.")
         @Test
         void incrementsViewCount() {
             ProductMetricsModel metrics = new ProductMetricsModel(UUID.randomUUID());
 
-            metrics.incrementView(ZonedDateTime.now());
+            metrics.incrementView();
 
             assertThat(metrics.getViewCount()).isEqualTo(1);
+            assertThat(metrics.getLastEventAt()).isNull();
         }
 
-        @DisplayName("incrementSales 호출 시, salesCount가 1 증가한다.")
+        @DisplayName("incrementSales 호출 시, salesCount가 1 증가하고 lastEventAt은 갱신되지 않는다.")
         @Test
         void incrementsSalesCount() {
             ProductMetricsModel metrics = new ProductMetricsModel(UUID.randomUUID());
 
-            metrics.incrementSales(ZonedDateTime.now());
+            metrics.incrementSales();
 
             assertThat(metrics.getSalesCount()).isEqualTo(1);
+            assertThat(metrics.getLastEventAt()).isNull();
         }
     }
 

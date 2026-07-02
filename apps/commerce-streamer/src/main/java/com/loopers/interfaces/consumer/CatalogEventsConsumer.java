@@ -3,6 +3,7 @@ package com.loopers.interfaces.consumer;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.loopers.confg.kafka.KafkaConfig;
+import com.loopers.domain.metrics.ProductMetricsModel;
 import com.loopers.domain.metrics.ProductMetricsService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -59,7 +60,7 @@ public class CatalogEventsConsumer {
             case "ProductUnlikedEvent" -> productMetricsService.applyIfNotHandled(payload.eventId(), () ->
                 productMetricsService.applyToProduct(payload.productId(), eventTime, (m, t) -> m.decrementLike(t)));
             case "ProductViewedEvent" -> productMetricsService.applyIfNotHandled(payload.eventId(), () ->
-                productMetricsService.applyToProduct(payload.productId(), eventTime, (m, t) -> m.incrementView(t)));
+                productMetricsService.applyToProductUnordered(payload.productId(), ProductMetricsModel::incrementView));
             default -> log.warn("알 수 없는 eventType — {}", eventType);
         }
     }

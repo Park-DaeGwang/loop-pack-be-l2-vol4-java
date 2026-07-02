@@ -3,6 +3,7 @@ package com.loopers.interfaces.consumer;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.loopers.confg.kafka.KafkaConfig;
+import com.loopers.domain.metrics.ProductMetricsModel;
 import com.loopers.domain.metrics.ProductMetricsService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -14,9 +15,6 @@ import org.springframework.kafka.support.Acknowledgment;
 import org.springframework.stereotype.Component;
 
 import java.nio.charset.StandardCharsets;
-import java.time.Instant;
-import java.time.ZoneId;
-import java.time.ZonedDateTime;
 import java.util.List;
 import java.util.UUID;
 
@@ -51,11 +49,10 @@ public class OrderEventsConsumer {
             return;
         }
         OrderEventPayload payload = objectMapper.readValue((String) record.value(), OrderEventPayload.class);
-        ZonedDateTime eventTime = ZonedDateTime.ofInstant(Instant.ofEpochMilli(record.timestamp()), ZoneId.systemDefault());
 
         productMetricsService.applyIfNotHandled(payload.eventId(), () -> {
             for (OrderItemPayload item : payload.items()) {
-                productMetricsService.applyToProduct(item.productId(), eventTime, (m, t) -> m.incrementSales(t));
+                productMetricsService.applyToProductUnordered(item.productId(), ProductMetricsModel::incrementSales);
             }
         });
     }
