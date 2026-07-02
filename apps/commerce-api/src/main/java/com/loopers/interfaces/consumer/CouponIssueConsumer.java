@@ -9,6 +9,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.apache.kafka.common.header.Header;
 import org.springframework.kafka.annotation.KafkaListener;
+import org.springframework.kafka.listener.BatchListenerFailedException;
 import org.springframework.kafka.support.Acknowledgment;
 import org.springframework.stereotype.Component;
 
@@ -28,11 +29,13 @@ public class CouponIssueConsumer {
 
     @KafkaListener(topics = "coupon-issue-requests", containerFactory = KafkaConfig.BATCH_LISTENER)
     public void consume(List<ConsumerRecord<Object, Object>> records, Acknowledgment acknowledgment) {
-        for (ConsumerRecord<Object, Object> record : records) {
+        for (int i = 0; i < records.size(); i++) {
+            ConsumerRecord<Object, Object> record = records.get(i);
             try {
                 process(record);
             } catch (Exception e) {
-                log.error("coupon-issue-requests 메시지 처리 실패 — offset={}", record.offset(), e);
+                throw new BatchListenerFailedException(
+                    "coupon-issue-requests 메시지 처리 실패 — offset=" + record.offset(), e, i);
             }
         }
         acknowledgment.acknowledge();

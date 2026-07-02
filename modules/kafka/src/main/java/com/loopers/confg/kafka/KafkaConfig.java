@@ -12,6 +12,9 @@ import org.springframework.kafka.config.ConcurrentKafkaListenerContainerFactory;
 import org.springframework.kafka.config.TopicBuilder;
 import org.springframework.kafka.core.*;
 import org.springframework.kafka.listener.ContainerProperties;
+import org.springframework.kafka.listener.DeadLetterPublishingRecoverer;
+import org.springframework.kafka.listener.DefaultErrorHandler;
+import org.springframework.kafka.support.ExponentialBackOffWithMaxRetries;
 import org.springframework.kafka.support.converter.BatchMessagingMessageConverter;
 import org.springframework.kafka.support.converter.ByteArrayJsonMessageConverter;
 
@@ -60,6 +63,32 @@ public class KafkaConfig {
             .build();
     }
 
+    // DLQ 토픽 — DeadLetterPublishingRecoverer 기본 네이밍은 "<원본토픽>-dlt"(소문자, 하이픈).
+    // 원본 레코드의 파티션 번호를 그대로 써서 발행하므로, 원본과 파티션 수도 맞춰야 한다.
+    @Bean
+    public NewTopic catalogEventsDlt() {
+        return TopicBuilder.name("catalog-events-dlt")
+            .partitions(DEFAULT_PARTITIONS)
+            .replicas(DEFAULT_REPLICATION_FACTOR)
+            .build();
+    }
+
+    @Bean
+    public NewTopic orderEventsDlt() {
+        return TopicBuilder.name("order-events-dlt")
+            .partitions(DEFAULT_PARTITIONS)
+            .replicas(DEFAULT_REPLICATION_FACTOR)
+            .build();
+    }
+
+    @Bean
+    public NewTopic couponIssueRequestsDlt() {
+        return TopicBuilder.name("coupon-issue-requests-dlt")
+            .partitions(DEFAULT_PARTITIONS)
+            .replicas(DEFAULT_REPLICATION_FACTOR)
+            .build();
+    }
+
     @Bean
     public ProducerFactory<Object, Object> producerFactory(KafkaProperties kafkaProperties) {
         Map<String, Object> props = new HashMap<>(kafkaProperties.buildProducerProperties());
@@ -82,10 +111,26 @@ public class KafkaConfig {
         return new ByteArrayJsonMessageConverter(objectMapper);
     }
 
+    // 재시도 소진 시 원본 레코드를 <토픽명>.DLT로 그대로 발행 (기본 네이밍 컨벤션)
+    @Bean
+    public DeadLetterPublishingRecoverer deadLetterPublishingRecoverer(KafkaTemplate<Object, Object> kafkaTemplate) {
+        return new DeadLetterPublishingRecoverer(kafkaTemplate);
+    }
+
+    // 실패 레코드 재시도 3회, backoff 500ms -> 1000ms -> 2000ms(2배씩 증가). 소진되면 recoverer가 DLQ로 발행.
+    @Bean
+    public DefaultErrorHandler kafkaErrorHandler(DeadLetterPublishingRecoverer recoverer) {
+        ExponentialBackOffWithMaxRetries backOff = new ExponentialBackOffWithMaxRetries(3);
+        backOff.setInitialInterval(500L);
+        backOff.setMultiplier(2.0);
+        return new DefaultErrorHandler(recoverer, backOff);
+    }
+
     @Bean(name = BATCH_LISTENER)
     public ConcurrentKafkaListenerContainerFactory<Object, Object> defaultBatchListenerContainerFactory(
             KafkaProperties kafkaProperties,
-            ByteArrayJsonMessageConverter converter
+            ByteArrayJsonMessageConverter converter,
+            DefaultErrorHandler kafkaErrorHandler
     ) {
         Map<String, Object> consumerConfig = new HashMap<>(kafkaProperties.buildConsumerProperties());
         consumerConfig.put(ConsumerConfig.MAX_POLL_RECORDS_CONFIG, MAX_POLLING_SIZE);
@@ -101,6 +146,7 @@ public class KafkaConfig {
         factory.setBatchMessageConverter(new BatchMessagingMessageConverter(converter));
         factory.setConcurrency(3);
         factory.setBatchListener(true);
+        factory.setCommonErrorHandler(kafkaErrorHandler);
         return factory;
     }
 }
