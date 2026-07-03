@@ -1,5 +1,6 @@
 package com.loopers.confg.kafka;
 
+import com.fasterxml.jackson.core.JacksonException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.apache.kafka.clients.admin.NewTopic;
 import org.apache.kafka.clients.consumer.ConsumerConfig;
@@ -111,19 +112,22 @@ public class KafkaConfig {
         return new ByteArrayJsonMessageConverter(objectMapper);
     }
 
-    // 재시도 소진 시 원본 레코드를 <토픽명>.DLT로 그대로 발행 (기본 네이밍 컨벤션)
+    // 재시도 소진 시 원본 레코드를 <토픽명>-dlt로 그대로 발행 (기본 네이밍 컨벤션)
     @Bean
     public DeadLetterPublishingRecoverer deadLetterPublishingRecoverer(KafkaTemplate<Object, Object> kafkaTemplate) {
         return new DeadLetterPublishingRecoverer(kafkaTemplate);
     }
 
     // 실패 레코드 재시도 3회, backoff 500ms -> 1000ms -> 2000ms(2배씩 증가). 소진되면 recoverer가 DLQ로 발행.
+    // 단, 깨진 JSON 같은 결정적 실패는 재시도해도 결과가 같으므로 즉시 DLQ로 보낸다.
     @Bean
     public DefaultErrorHandler kafkaErrorHandler(DeadLetterPublishingRecoverer recoverer) {
         ExponentialBackOffWithMaxRetries backOff = new ExponentialBackOffWithMaxRetries(3);
         backOff.setInitialInterval(500L);
         backOff.setMultiplier(2.0);
-        return new DefaultErrorHandler(recoverer, backOff);
+        DefaultErrorHandler errorHandler = new DefaultErrorHandler(recoverer, backOff);
+        errorHandler.addNotRetryableExceptions(JacksonException.class);
+        return errorHandler;
     }
 
     @Bean(name = BATCH_LISTENER)
