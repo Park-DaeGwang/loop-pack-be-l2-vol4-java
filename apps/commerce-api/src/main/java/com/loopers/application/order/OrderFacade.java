@@ -9,6 +9,7 @@ import com.loopers.domain.order.OrderService;
 import com.loopers.domain.order.OrderStockService;
 import com.loopers.domain.product.ProductModel;
 import com.loopers.domain.product.ProductService;
+import com.loopers.domain.queue.WaitingQueueService;
 import com.loopers.domain.stock.StockService;
 import com.loopers.domain.user.UserModel;
 import com.loopers.support.error.CoreException;
@@ -38,6 +39,7 @@ public class OrderFacade {
     private final ProductService productService;
     private final StockService stockService;
     private final UserCouponService userCouponService;
+    private final WaitingQueueService waitingQueueService;
     private final ApplicationEventPublisher eventPublisher;
 
     /** 주문 생성 — 멱등 키 pre-check 후 상품 유효성 검증 + 쿠폰 적용 + 재고 예약 + 주문 저장 (단일 트랜잭션) */
@@ -76,6 +78,9 @@ public class OrderFacade {
         // 4단계: 1LC에서 detach된 order 재조회
         OrderModel placed = orderService.get(order.getId());
         eventPublisher.publishEvent(new OrderPlacedEvent(placed.getId(), userId));
+
+        // 5단계: 주문 완료 후 입장 토큰 삭제
+        waitingQueueService.removeToken(userId);
         return OrderInfo.from(placed);
     }
 

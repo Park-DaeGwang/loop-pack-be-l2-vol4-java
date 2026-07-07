@@ -2,6 +2,9 @@ package com.loopers.config.redis;
 
 
 import io.lettuce.core.ReadFrom;
+import org.redisson.Redisson;
+import org.redisson.api.RedissonClient;
+import org.redisson.config.Config;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
@@ -84,6 +87,15 @@ public class RedisConfig{
             masterReplicaConfig.addNode(r.host(), r.port());
         }
         return new LettuceConnectionFactory(masterReplicaConfig, clientConfig);
+    }
+
+    @Bean(destroyMethod = "shutdown")
+    public RedissonClient redissonClient() {
+        Config config = new Config();
+        config.useSingleServer()
+            .setAddress("redis://" + redisProperties.master().host() + ":" + redisProperties.master().port())
+            .setDatabase(redisProperties.database());
+        return Redisson.create(config);
     }
 
     private <K,V> RedisTemplate<K,V> defaultRedisTemplate(

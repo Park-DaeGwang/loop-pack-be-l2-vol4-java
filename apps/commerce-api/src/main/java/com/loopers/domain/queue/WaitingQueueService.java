@@ -7,14 +7,15 @@ import org.springframework.stereotype.Service;
 
 import java.time.Duration;
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 
 @Service
 @RequiredArgsConstructor
 public class WaitingQueueService {
 
-    // 100ms마다 ~18명 발급 = 초당 180명. waiting-queue-systems.md 처리량 설계 기준 참고.
-    private static final long THROUGHPUT_PER_SECOND = 180L;
+    // 초당 160명 발급. 산정 근거: volume-8-plan.md 스케줄러 배치 크기 산정 참고.
+    private static final long THROUGHPUT_PER_SECOND = 160L;
     private static final Duration TOKEN_TTL = Duration.ofMinutes(5);
 
     private final WaitingQueueRepository waitingQueueRepository;
@@ -50,6 +51,10 @@ public class WaitingQueueService {
 
     public List<UUID> popBatch(int count) {
         return waitingQueueRepository.popBatch(count);
+    }
+
+    public Optional<String> findToken(UUID userId) {
+        return waitingQueueRepository.findToken(userId);
     }
 
     public void removeToken(UUID userId) {
