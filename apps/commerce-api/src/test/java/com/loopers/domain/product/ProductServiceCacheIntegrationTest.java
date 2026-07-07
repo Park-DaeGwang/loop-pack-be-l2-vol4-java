@@ -27,6 +27,7 @@ import java.util.UUID;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.clearInvocations;
+import static org.mockito.Mockito.mockingDetails;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -87,29 +88,46 @@ class ProductServiceCacheIntegrationTest {
             verify(productRepository, never()).findActive(any());
         }
 
-        @DisplayName("좋아요 발생 시 캐시가 무효화되어 다음 조회는 DB를 조회한다.")
+        @DisplayName("좋아요 발생 시 캐시가 (비동기로) 결국 무효화되어 이후 조회는 DB를 조회한다.")
         @Test
-        void like_evictsCache_nextCallQueriesDB() {
+        void like_evictsCache_nextCallQueriesDB() throws InterruptedException {
             productService.getActiveSnapshot(productId); // 캐시 저장
-            likeFacade.like(productId, user);            // @CacheEvict
+            likeFacade.like(productId, user);            // likeCount 집계+evict는 이벤트로 비동기 처리(eventual consistency)
             clearInvocations(productRepository);
 
-            productService.getActiveSnapshot(productId); // cache miss → DB
+            pollUntilCacheEvicted(productId);
 
             verify(productRepository, times(1)).findActive(productId);
         }
 
-        @DisplayName("좋아요 취소 발생 시 캐시가 무효화되어 다음 조회는 DB를 조회한다.")
+        @DisplayName("좋아요 취소 발생 시 캐시가 (비동기로) 결국 무효화되어 이후 조회는 DB를 조회한다.")
         @Test
-        void unlike_evictsCache_nextCallQueriesDB() {
+        void unlike_evictsCache_nextCallQueriesDB() throws InterruptedException {
             likeFacade.like(productId, user);            // 좋아요 먼저
+            pollUntilCacheEvicted(productId);             // 좋아요 집계 이벤트가 먼저 캐시를 한 번 지워둘 수 있으므로 안정화
             productService.getActiveSnapshot(productId); // 캐시 저장
-            likeFacade.unlike(productId, user);          // @CacheEvict
+            likeFacade.unlike(productId, user);          // likeCount 집계+evict는 이벤트로 비동기 처리
             clearInvocations(productRepository);
 
-            productService.getActiveSnapshot(productId); // cache miss → DB
+            pollUntilCacheEvicted(productId);
 
             verify(productRepository, times(1)).findActive(productId);
+        }
+
+        /** likeCount 집계/캐시 evict는 비동기 이벤트라 즉시 반영을 보장하지 않는다 — 캐시 미스가 관측될 때까지 폴링한다. */
+        private void pollUntilCacheEvicted(UUID id) throws InterruptedException {
+            long deadline = System.currentTimeMillis() + 5000;
+            while (System.currentTimeMillis() < deadline) {
+                clearInvocations(productRepository);
+                productService.getActiveSnapshot(id);
+                boolean queriedDb = mockingDetails(productRepository).getInvocations().stream()
+                    .anyMatch(invocation -> invocation.getMethod().getName().equals("findActive"));
+                if (queriedDb) {
+                    return;
+                }
+                Thread.sleep(200);
+            }
+            throw new AssertionError("캐시가 제한 시간 내에 무효화되지 않았다.");
         }
     }
 }

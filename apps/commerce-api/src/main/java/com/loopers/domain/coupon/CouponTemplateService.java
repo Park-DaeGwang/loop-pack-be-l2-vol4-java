@@ -19,8 +19,13 @@ public class CouponTemplateService {
 
     /** 템플릿 생성. 동시 중복 생성은 DB unique 충돌로 CONFLICT. */
     public CouponTemplateModel create(String name, CouponType type, Long value, Long minOrderAmount, ZonedDateTime expiredAt) {
+        return create(name, type, value, minOrderAmount, expiredAt, null);
+    }
+
+    /** 템플릿 생성 — totalQuantity 지정 시 선착순(수량 제한) 쿠폰. */
+    public CouponTemplateModel create(String name, CouponType type, Long value, Long minOrderAmount, ZonedDateTime expiredAt, Long totalQuantity) {
         try {
-            return couponTemplateRepository.saveAndFlush(new CouponTemplateModel(name, type, value, minOrderAmount, expiredAt));
+            return couponTemplateRepository.saveAndFlush(new CouponTemplateModel(name, type, value, minOrderAmount, expiredAt, totalQuantity));
         } catch (DataIntegrityViolationException e) {
             throw new CoreException(ErrorType.CONFLICT, "[name = " + name + "] 이미 존재하는 쿠폰명입니다.");
         }

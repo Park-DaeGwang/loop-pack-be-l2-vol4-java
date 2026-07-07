@@ -4,6 +4,7 @@ import com.loopers.domain.coupon.UserCouponModel;
 import com.loopers.domain.coupon.UserCouponService;
 import com.loopers.domain.order.OrderItemModel;
 import com.loopers.domain.order.OrderModel;
+import com.loopers.domain.order.OrderPlacedEvent;
 import com.loopers.domain.order.OrderService;
 import com.loopers.domain.order.OrderStockService;
 import com.loopers.domain.product.ProductModel;
@@ -13,6 +14,7 @@ import com.loopers.domain.user.UserModel;
 import com.loopers.support.error.CoreException;
 import com.loopers.support.error.ErrorType;
 import lombok.RequiredArgsConstructor;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Component;
@@ -36,6 +38,7 @@ public class OrderFacade {
     private final ProductService productService;
     private final StockService stockService;
     private final UserCouponService userCouponService;
+    private final ApplicationEventPublisher eventPublisher;
 
     /** 주문 생성 — 멱등 키 pre-check 후 상품 유효성 검증 + 쿠폰 적용 + 재고 예약 + 주문 저장 (단일 트랜잭션) */
     @Transactional
@@ -71,7 +74,9 @@ public class OrderFacade {
         itemRequests.forEach(req -> stockService.reserve(req.productId(), req.quantity()));
 
         // 4단계: 1LC에서 detach된 order 재조회
-        return OrderInfo.from(orderService.get(order.getId()));
+        OrderModel placed = orderService.get(order.getId());
+        eventPublisher.publishEvent(new OrderPlacedEvent(placed.getId(), userId));
+        return OrderInfo.from(placed);
     }
 
     /** 쿠폰 검증(소유/만료/최소금액) → 사용(조건부 UPDATE) → 할인 반영. 재고예약과 동일 트랜잭션이라 실패 시 함께 롤백 */

@@ -6,12 +6,9 @@ import java.util.UUID;
 
 public class LikeV1Dto {
 
-    public record LikeResponse(
-        UUID productId,
-        long likeCount
-    ) {
+    public record LikeResponse(UUID productId) {
         public static LikeResponse from(LikeInfo info) {
-            return new LikeResponse(info.productId(), info.likeCount());
+            return new LikeResponse(info.productId());
         }
     }
 }

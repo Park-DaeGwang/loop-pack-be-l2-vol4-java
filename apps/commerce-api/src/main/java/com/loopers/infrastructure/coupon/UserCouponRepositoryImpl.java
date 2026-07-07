@@ -43,6 +43,11 @@ public class UserCouponRepositoryImpl implements UserCouponRepository {
     }
 
     @Override
+    public boolean existsByUserIdAndTemplateId(UUID userId, UUID templateId) {
+        return userCouponJpaRepository.existsByUserIdAndTemplateId(userId, templateId);
+    }
+
+    @Override
     public int useIfAvailable(UUID id, UUID orderId, ZonedDateTime usedAt) {
         return userCouponJpaRepository.useIfAvailable(id, orderId, usedAt);
     }

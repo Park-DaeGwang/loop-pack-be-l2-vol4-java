@@ -35,8 +35,10 @@ public class CacheConfig {
         Jackson2JsonRedisSerializer<ProductCacheDto> productSerializer =
                 new Jackson2JsonRedisSerializer<>(objectMapper, ProductCacheDto.class);
 
+        // likeCount는 이벤트 기반 비동기 집계라 evict-then-stale-put 레이스 위험이 있음 —
+        // TTL을 짧게 잡아 최악의 경우에도 캐시가 금방 자연 치유되도록 한다 (완벽한 정합성 대신 감수).
         RedisCacheConfiguration productCacheConfig = RedisCacheConfiguration.defaultCacheConfig()
-                .entryTtl(Duration.ofHours(1))
+                .entryTtl(Duration.ofSeconds(3))
                 .serializeKeysWith(RedisSerializationContext.SerializationPair
                         .fromSerializer(new StringRedisSerializer()))
                 .serializeValuesWith(RedisSerializationContext.SerializationPair

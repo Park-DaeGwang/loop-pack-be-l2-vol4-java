@@ -5,9 +5,11 @@ import com.loopers.domain.brand.BrandService;
 import com.loopers.domain.product.ProductCacheDto;
 import com.loopers.domain.product.ProductModel;
 import com.loopers.domain.product.ProductService;
+import com.loopers.domain.product.ProductViewedEvent;
 import com.loopers.domain.stock.StockModel;
 import com.loopers.domain.stock.StockService;
 import lombok.RequiredArgsConstructor;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Component;
@@ -23,6 +25,7 @@ public class ProductFacade {
     private final BrandService brandService;
     private final ProductService productService;
     private final StockService stockService;
+    private final ApplicationEventPublisher eventPublisher;
 
     /** 상품 등록 — 브랜드 검증 + 상품 저장 + 재고 초기화 */
     @Transactional
@@ -44,6 +47,7 @@ public class ProductFacade {
     public ProductInfo getActive(UUID id) {
         ProductCacheDto snapshot = productService.getActiveSnapshot(id);
         StockModel stock = stockService.getByProductId(id);
+        eventPublisher.publishEvent(new ProductViewedEvent(id));
         return ProductInfo.from(snapshot, stock);
     }
 

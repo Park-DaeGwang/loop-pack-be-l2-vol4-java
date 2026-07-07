@@ -34,4 +34,9 @@ public class CouponTemplateRepositoryImpl implements CouponTemplateRepository {
     public Page<CouponTemplateModel> findAll(Pageable pageable) {
         return couponTemplateJpaRepository.findAll(pageable);
     }
+
+    @Override
+    public int tryIssue(UUID id) {
+        return couponTemplateJpaRepository.tryIssue(id);
+    }
 }
