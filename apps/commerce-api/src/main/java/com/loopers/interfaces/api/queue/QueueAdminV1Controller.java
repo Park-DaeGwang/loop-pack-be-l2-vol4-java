@@ -21,7 +21,8 @@ public class QueueAdminV1Controller {
         return ApiResponse.success(new QueueAdminV1Dto.ConfigResponse(
             queueDynamicConfig.tokenTtlSeconds(),
             queueDynamicConfig.rateLimitPerSecond(),
-            queueDynamicConfig.batchSize()
+            queueDynamicConfig.batchSize(),
+            queueDynamicConfig.paymentRateLimitPerSecond()
         ));
     }
 
@@ -38,10 +39,14 @@ public class QueueAdminV1Controller {
         if (request.batchSize() != null) {
             queueDynamicConfig.updateBatchSize(request.batchSize());
         }
+        if (request.paymentRateLimitPerSecond() != null) {
+            queueDynamicConfig.updatePaymentRateLimitPerSecond(request.paymentRateLimitPerSecond());
+        }
         return ApiResponse.success(new QueueAdminV1Dto.ConfigResponse(
             queueDynamicConfig.tokenTtlSeconds(),
             queueDynamicConfig.rateLimitPerSecond(),
-            queueDynamicConfig.batchSize()
+            queueDynamicConfig.batchSize(),
+            queueDynamicConfig.paymentRateLimitPerSecond()
         ));
     }
 }

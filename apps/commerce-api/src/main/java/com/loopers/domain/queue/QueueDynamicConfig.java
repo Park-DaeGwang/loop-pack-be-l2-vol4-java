@@ -66,4 +66,18 @@ public class QueueDynamicConfig {
     public void updateBatchSize(int value) {
         redisTemplate.opsForHash().put(CONFIG_KEY, "batchSize", String.valueOf(value));
     }
+
+    public int paymentRateLimitPerSecond() {
+        try {
+            String val = (String) redisTemplate.opsForHash().get(CONFIG_KEY, "paymentRateLimitPerSecond");
+            return val != null ? Integer.parseInt(val) : defaults.paymentRateLimitPerSecond();
+        } catch (Exception e) {
+            return defaults.paymentRateLimitPerSecond();
+        }
+    }
+
+    public void updatePaymentRateLimitPerSecond(int value) {
+        redisTemplate.opsForHash().put(CONFIG_KEY, "paymentRateLimitPerSecond", String.valueOf(value));
+        redissonClient.getRateLimiter("payment:ratelimit").delete();
+    }
 }
