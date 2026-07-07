@@ -39,6 +39,7 @@ pg:
 queue:
   token-ttl-seconds: 300
   rate-limit-per-second: 400
+  batch-size: 160
 
 resilience4j:
   retry:
@@ -82,6 +83,7 @@ pg:
 queue:
   token-ttl-seconds: 1
   rate-limit-per-second: 1
+  batch-size: 160
 
 ---
 spring:

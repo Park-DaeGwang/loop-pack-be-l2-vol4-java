@@ -1,6 +1,6 @@
 package com.loopers.interfaces.api.common.interceptor;
 
-import com.loopers.config.QueueProperties;
+import com.loopers.domain.queue.QueueDynamicConfig;
 import com.loopers.domain.queue.WaitingQueueService;
 import com.loopers.domain.user.UserModel;
 import com.loopers.support.error.CoreException;
@@ -27,7 +27,7 @@ public class QueueTokenInterceptor implements HandlerInterceptor {
 
     private final WaitingQueueService waitingQueueService;
     private final RedissonClient redissonClient;
-    private final QueueProperties queueProperties;
+    private final QueueDynamicConfig queueDynamicConfig;
 
     @Override
     public boolean preHandle(HttpServletRequest request, HttpServletResponse response, Object handler) {
@@ -51,7 +51,7 @@ public class QueueTokenInterceptor implements HandlerInterceptor {
         }
 
         RRateLimiter rateLimiter = redissonClient.getRateLimiter("order:ratelimit");
-        rateLimiter.trySetRate(RateType.OVERALL, queueProperties.rateLimitPerSecond(), 1, RateIntervalUnit.SECONDS);
+        rateLimiter.trySetRate(RateType.OVERALL, queueDynamicConfig.rateLimitPerSecond(), 1, RateIntervalUnit.SECONDS);
         if (!rateLimiter.tryAcquire()) {
             throw new CoreException(ErrorType.TOO_MANY_REQUESTS);
         }

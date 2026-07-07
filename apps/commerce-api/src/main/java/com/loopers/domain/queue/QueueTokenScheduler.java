@@ -11,13 +11,12 @@ import java.util.UUID;
 @RequiredArgsConstructor
 public class QueueTokenScheduler {
 
-    private static final int BATCH_SIZE = 160;
-
     private final WaitingQueueService waitingQueueService;
+    private final QueueDynamicConfig queueDynamicConfig;
 
     @Scheduled(fixedDelay = 1000)
     public void issueTokens() {
-        List<UUID> userIds = waitingQueueService.popBatch(BATCH_SIZE);
+        List<UUID> userIds = waitingQueueService.popBatch(queueDynamicConfig.batchSize());
         userIds.forEach(waitingQueueService::issueToken);
     }
 }

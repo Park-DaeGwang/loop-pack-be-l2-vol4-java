@@ -1,8 +1,8 @@
 package com.loopers.domain.queue;
 
-import com.loopers.config.QueueProperties;
 import com.loopers.support.error.CoreException;
 import com.loopers.support.error.ErrorType;
+import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
 import java.time.Duration;
@@ -11,18 +11,13 @@ import java.util.Optional;
 import java.util.UUID;
 
 @Service
+@RequiredArgsConstructor
 public class WaitingQueueService {
 
-    // 초당 160명 발급. 산정 근거: volume-8-plan.md 스케줄러 배치 크기 산정 참고.
     private static final long THROUGHPUT_PER_SECOND = 160L;
 
     private final WaitingQueueRepository waitingQueueRepository;
-    private final Duration tokenTtl;
-
-    public WaitingQueueService(WaitingQueueRepository waitingQueueRepository, QueueProperties queueProperties) {
-        this.waitingQueueRepository = waitingQueueRepository;
-        this.tokenTtl = Duration.ofSeconds(queueProperties.tokenTtlSeconds());
-    }
+    private final QueueDynamicConfig queueDynamicConfig;
 
     public long enter(UUID userId) {
         long score = System.currentTimeMillis();
@@ -50,7 +45,8 @@ public class WaitingQueueService {
 
     public void issueToken(UUID userId) {
         String token = UUID.randomUUID().toString();
-        waitingQueueRepository.saveToken(userId, token, tokenTtl);
+        Duration ttl = Duration.ofSeconds(queueDynamicConfig.tokenTtlSeconds());
+        waitingQueueRepository.saveToken(userId, token, ttl);
     }
 
     public List<UUID> popBatch(int count) {
