@@ -43,17 +43,30 @@ public class QueueTokenInterceptor implements HandlerInterceptor {
         UserModel user = (UserModel) request.getAttribute(AuthInterceptor.AUTHENTICATED_USER);
         UUID userId = user.getId();
 
-        String savedToken = waitingQueueService.findToken(userId)
-            .orElseThrow(() -> new CoreException(ErrorType.QUEUE_TOKEN_REQUIRED));
+        String savedToken;
+        try {
+            savedToken = waitingQueueService.findToken(userId)
+                .orElseThrow(() -> new CoreException(ErrorType.QUEUE_TOKEN_REQUIRED));
+        } catch (CoreException e) {
+            throw e;
+        } catch (Exception e) {
+            throw new CoreException(ErrorType.SERVICE_UNAVAILABLE);
+        }
 
         if (!savedToken.equals(token)) {
             throw new CoreException(ErrorType.QUEUE_TOKEN_REQUIRED);
         }
 
-        RRateLimiter rateLimiter = redissonClient.getRateLimiter("order:ratelimit");
-        rateLimiter.trySetRate(RateType.OVERALL, queueDynamicConfig.rateLimitPerSecond(), 1, RateIntervalUnit.SECONDS);
-        if (!rateLimiter.tryAcquire()) {
-            throw new CoreException(ErrorType.TOO_MANY_REQUESTS);
+        try {
+            RRateLimiter rateLimiter = redissonClient.getRateLimiter("order:ratelimit");
+            rateLimiter.trySetRate(RateType.OVERALL, queueDynamicConfig.rateLimitPerSecond(), 1, RateIntervalUnit.SECONDS);
+            if (!rateLimiter.tryAcquire()) {
+                throw new CoreException(ErrorType.TOO_MANY_REQUESTS);
+            }
+        } catch (CoreException e) {
+            throw e;
+        } catch (Exception e) {
+            throw new CoreException(ErrorType.SERVICE_UNAVAILABLE);
         }
 
         return true;

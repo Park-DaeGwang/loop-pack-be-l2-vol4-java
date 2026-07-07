@@ -67,6 +67,16 @@ resilience4j:
           - org.springframework.web.client.HttpServerErrorException  # 5xx만 실패 카운트
           - org.springframework.web.client.ResourceAccessException   # 네트워크 오류/타임아웃
         # record-exceptions 화이트리스트 방식 — 목록 외 예외는 실패 카운트 안 됨
+      redisQueue:
+        sliding-window-type: COUNT_BASED          # 고빈도 호출 → 카운트 기반이 빠른 감지
+        sliding-window-size: 10                   # 최근 10건 기준
+        minimum-number-of-calls: 5                # 5건 이상 쌓여야 실패율 계산
+        failure-rate-threshold: 50                # 실패율 50% 이상이면 Open
+        wait-duration-in-open-state: 5s           # Open 후 5s 대기, 이후 Half-Open 전환
+        permitted-number-of-calls-in-half-open-state: 3
+        record-exceptions:
+          - io.lettuce.core.RedisConnectionException
+          - io.lettuce.core.RedisCommandTimeoutException
 
 ---
 spring:

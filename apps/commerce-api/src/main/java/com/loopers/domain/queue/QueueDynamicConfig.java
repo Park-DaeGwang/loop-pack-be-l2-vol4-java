@@ -28,18 +28,30 @@ public class QueueDynamicConfig {
     }
 
     public long tokenTtlSeconds() {
-        String val = (String) redisTemplate.opsForHash().get(CONFIG_KEY, "tokenTtlSeconds");
-        return val != null ? Long.parseLong(val) : defaults.tokenTtlSeconds();
+        try {
+            String val = (String) redisTemplate.opsForHash().get(CONFIG_KEY, "tokenTtlSeconds");
+            return val != null ? Long.parseLong(val) : defaults.tokenTtlSeconds();
+        } catch (Exception e) {
+            return defaults.tokenTtlSeconds();
+        }
     }
 
     public int rateLimitPerSecond() {
-        String val = (String) redisTemplate.opsForHash().get(CONFIG_KEY, "rateLimitPerSecond");
-        return val != null ? Integer.parseInt(val) : defaults.rateLimitPerSecond();
+        try {
+            String val = (String) redisTemplate.opsForHash().get(CONFIG_KEY, "rateLimitPerSecond");
+            return val != null ? Integer.parseInt(val) : defaults.rateLimitPerSecond();
+        } catch (Exception e) {
+            return defaults.rateLimitPerSecond();
+        }
     }
 
     public int batchSize() {
-        String val = (String) redisTemplate.opsForHash().get(CONFIG_KEY, "batchSize");
-        return val != null ? Integer.parseInt(val) : defaults.batchSize();
+        try {
+            String val = (String) redisTemplate.opsForHash().get(CONFIG_KEY, "batchSize");
+            return val != null ? Integer.parseInt(val) : defaults.batchSize();
+        } catch (Exception e) {
+            return defaults.batchSize();
+        }
     }
 
     public void updateTokenTtlSeconds(long value) {
