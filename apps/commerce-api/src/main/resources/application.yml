@@ -36,6 +36,10 @@ pg:
   connect-timeout: 1000
   read-timeout: 3000
 
+queue:
+  token-ttl-seconds: 300
+  rate-limit-per-second: 400
+
 resilience4j:
   retry:
     instances:
@@ -74,6 +78,10 @@ pg:
   callback-url: http://localhost:8080/api/v1/payments/callback
   connect-timeout: 1000
   read-timeout: 3000
+
+queue:
+  token-ttl-seconds: 1
+  rate-limit-per-second: 1
 
 ---
 spring:

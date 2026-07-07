@@ -1,5 +1,6 @@
 package com.loopers.interfaces.api.common.interceptor;
 
+import com.loopers.config.QueueProperties;
 import com.loopers.domain.queue.WaitingQueueService;
 import com.loopers.domain.user.UserModel;
 import com.loopers.support.error.CoreException;
@@ -23,10 +24,10 @@ import java.util.UUID;
 public class QueueTokenInterceptor implements HandlerInterceptor {
 
     public static final String QUEUE_TOKEN_HEADER = "X-Queue-Token";
-    private static final int RATE_LIMIT = 400;
 
     private final WaitingQueueService waitingQueueService;
     private final RedissonClient redissonClient;
+    private final QueueProperties queueProperties;
 
     @Override
     public boolean preHandle(HttpServletRequest request, HttpServletResponse response, Object handler) {
@@ -50,7 +51,7 @@ public class QueueTokenInterceptor implements HandlerInterceptor {
         }
 
         RRateLimiter rateLimiter = redissonClient.getRateLimiter("order:ratelimit");
-        rateLimiter.trySetRate(RateType.OVERALL, RATE_LIMIT, 1, RateIntervalUnit.SECONDS);
+        rateLimiter.trySetRate(RateType.OVERALL, queueProperties.rateLimitPerSecond(), 1, RateIntervalUnit.SECONDS);
         if (!rateLimiter.tryAcquire()) {
             throw new CoreException(ErrorType.TOO_MANY_REQUESTS);
         }

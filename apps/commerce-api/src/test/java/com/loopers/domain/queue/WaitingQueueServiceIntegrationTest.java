@@ -12,7 +12,12 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.context.annotation.Import;
 
+import java.util.List;
 import java.util.UUID;
+import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertAll;
@@ -135,6 +140,42 @@ class WaitingQueueServiceIntegrationTest {
             assertAll(
                 () -> assertThat(result.position()).isEqualTo(0L),
                 () -> assertThat(result.token()).isPresent()
+            );
+        }
+    }
+
+    @DisplayName("동시 진입 시,")
+    @Nested
+    class ConcurrentEnter {
+
+        @DisplayName("모든 유저의 순번이 유일하게 보장된다.")
+        @Test
+        void assignsUniquePositions_whenConcurrentEnter() throws InterruptedException {
+            // arrange
+            int userCount = 10;
+            List<Long> positions = new CopyOnWriteArrayList<>();
+            ExecutorService executor = Executors.newFixedThreadPool(userCount);
+            CountDownLatch latch = new CountDownLatch(userCount);
+
+            // act
+            for (int i = 0; i < userCount; i++) {
+                executor.submit(() -> {
+                    try {
+                        long position = waitingQueueService.enter(UUID.randomUUID());
+                        positions.add(position);
+                    } finally {
+                        latch.countDown();
+                    }
+                });
+            }
+            latch.await();
+            executor.shutdown();
+
+            // assert
+            assertAll(
+                () -> assertThat(positions).hasSize(userCount),
+                () -> assertThat(positions).doesNotHaveDuplicates(),
+                () -> assertThat(positions).allMatch(p -> p >= 1 && p <= userCount)
             );
         }
     }
