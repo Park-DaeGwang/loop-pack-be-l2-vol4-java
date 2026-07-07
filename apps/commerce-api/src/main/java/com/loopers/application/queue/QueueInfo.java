@@ -10,12 +10,13 @@ public class QueueInfo {
         }
     }
 
-    public record PositionInfo(long position, long estimatedWaitSeconds, String token) {
+    public record PositionInfo(long position, long estimatedWaitSeconds, String token, long recommendedPollingIntervalSeconds) {
         public static PositionInfo from(QueuePositionResult result) {
             return new PositionInfo(
                 result.position(),
                 result.estimatedWaitSeconds(),
-                result.token().orElse(null)
+                result.token().orElse(null),
+                result.recommendedPollingIntervalSeconds()
             );
         }
     }

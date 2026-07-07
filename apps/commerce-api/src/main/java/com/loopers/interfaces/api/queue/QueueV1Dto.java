@@ -10,9 +10,9 @@ public class QueueV1Dto {
         }
     }
 
-    public record PositionResponse(long position, long estimatedWaitSeconds, String token) {
+    public record PositionResponse(long position, long estimatedWaitSeconds, String token, long recommendedPollingIntervalSeconds) {
         public static PositionResponse from(QueueInfo.PositionInfo info) {
-            return new PositionResponse(info.position(), info.estimatedWaitSeconds(), info.token());
+            return new PositionResponse(info.position(), info.estimatedWaitSeconds(), info.token(), info.recommendedPollingIntervalSeconds());
         }
     }
 }
