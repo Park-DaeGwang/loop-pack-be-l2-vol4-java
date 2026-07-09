@@ -93,9 +93,9 @@ pg:
 
 queue:
   token-ttl-seconds: 1
-  rate-limit-per-second: 1
+  rate-limit-per-second: 999
   batch-size: 160
-  payment-rate-limit-per-second: 1
+  payment-rate-limit-per-second: 999
 
 ---
 spring:

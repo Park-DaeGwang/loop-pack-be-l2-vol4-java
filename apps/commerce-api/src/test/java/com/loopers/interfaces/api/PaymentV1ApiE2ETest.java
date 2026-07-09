@@ -4,6 +4,7 @@ import com.loopers.domain.notification.AlimtalkSender;
 import com.loopers.domain.pg.PgGateway;
 import com.loopers.domain.pg.PgTransactionResult;
 import com.loopers.domain.pg.PgTransactionStatus;
+import com.loopers.domain.queue.WaitingQueueService;
 import com.loopers.fixture.BrandFixture;
 import com.loopers.fixture.ProductFixture;
 import com.loopers.fixture.UserFixture;
@@ -14,6 +15,7 @@ import com.loopers.interfaces.api.payment.PaymentV1Dto;
 import com.loopers.interfaces.api.product.ProductV1Dto;
 import com.loopers.interfaces.api.user.UserV1Dto;
 import com.loopers.utils.DatabaseCleanUp;
+import com.loopers.utils.RedisCleanUp;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -63,6 +65,12 @@ class PaymentV1ApiE2ETest {
     @Autowired
     private DatabaseCleanUp databaseCleanUp;
 
+    @Autowired
+    private RedisCleanUp redisCleanUp;
+
+    @Autowired
+    private WaitingQueueService waitingQueueService;
+
     private UUID userId;
     private UUID productId;
     private UUID brandId;
@@ -96,6 +104,7 @@ class PaymentV1ApiE2ETest {
     @AfterEach
     void tearDown() {
         databaseCleanUp.truncateAllTables();
+        redisCleanUp.truncateAll();
     }
 
     private HttpHeaders authHeaders() {
@@ -112,8 +121,10 @@ class PaymentV1ApiE2ETest {
     }
 
     private HttpHeaders orderHeaders() {
+        waitingQueueService.issueToken(userId);
         HttpHeaders headers = authHeaders();
         headers.set("Idempotency-Key", UUID.randomUUID().toString());
+        headers.set("X-Queue-Token", waitingQueueService.findToken(userId).orElseThrow());
         return headers;
     }
 

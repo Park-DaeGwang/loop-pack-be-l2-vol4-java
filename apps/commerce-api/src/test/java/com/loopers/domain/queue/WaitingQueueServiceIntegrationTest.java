@@ -1,15 +1,19 @@
 package com.loopers.domain.queue;
 
+import com.loopers.domain.queue.QueueTokenScheduler;
 import com.loopers.support.error.CoreException;
 import com.loopers.support.error.ErrorType;
 import com.loopers.testcontainers.RedisTestContainersConfig;
 import com.loopers.utils.RedisCleanUp;
+import io.github.resilience4j.circuitbreaker.CircuitBreakerRegistry;
 import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.context.annotation.Import;
 
 import java.util.List;
@@ -32,6 +36,17 @@ class WaitingQueueServiceIntegrationTest {
 
     @Autowired
     private RedisCleanUp redisCleanUp;
+
+    @Autowired
+    private CircuitBreakerRegistry circuitBreakerRegistry;
+
+    @MockBean
+    private QueueTokenScheduler queueTokenScheduler;
+
+    @BeforeEach
+    void setUp() {
+        circuitBreakerRegistry.circuitBreaker("redisQueue").reset();
+    }
 
     @AfterEach
     void tearDown() {

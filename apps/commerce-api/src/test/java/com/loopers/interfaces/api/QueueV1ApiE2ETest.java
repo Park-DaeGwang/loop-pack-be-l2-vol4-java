@@ -1,5 +1,6 @@
 package com.loopers.interfaces.api;
 
+import com.loopers.domain.queue.QueueDynamicConfig;
 import com.loopers.domain.queue.WaitingQueueService;
 import com.loopers.fixture.UserFixture;
 import com.loopers.interfaces.api.common.interceptor.QueueTokenInterceptor;
@@ -43,6 +44,9 @@ class QueueV1ApiE2ETest {
 
     @Autowired
     private WaitingQueueService waitingQueueService;
+
+    @Autowired
+    private QueueDynamicConfig queueDynamicConfig;
 
     @Autowired
     private DatabaseCleanUp databaseCleanUp;
@@ -220,6 +224,8 @@ class QueueV1ApiE2ETest {
         @DisplayName("초당 400건 초과 요청 시, 429를 반환하고 토큰은 유효하게 유지된다.")
         @Test
         void returns429AndTokenStillValid_whenRateLimitExceeded() throws InterruptedException {
+            // arrange - rate limit을 1 TPS로 낮춰 2개 동시 요청 중 하나가 429를 받도록 설정
+            queueDynamicConfig.updateRateLimitPerSecond(1);
             // arrange - 토큰 발급
             testRestTemplate.exchange(ENDPOINT_ENTER, HttpMethod.POST,
                 new HttpEntity<>(authHeaders()),
