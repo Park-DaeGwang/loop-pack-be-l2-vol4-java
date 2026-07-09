@@ -18,5 +18,9 @@ public class RedisTestContainersConfig {
         System.setProperty("datasource.redis.master.port", String.valueOf(redisContainer.getFirstMappedPort()));
         System.setProperty("datasource.redis.replicas[0].host", redisContainer.getHost());
         System.setProperty("datasource.redis.replicas[0].port", String.valueOf(redisContainer.getFirstMappedPort()));
+        // 테스트에서는 캐시 Redis를 동일 컨테이너로 연결
+        System.setProperty("datasource.redis-cache.host", redisContainer.getHost());
+        System.setProperty("datasource.redis-cache.port", String.valueOf(redisContainer.getFirstMappedPort()));
+        System.setProperty("datasource.redis-cache.database", "1");
     }
 }

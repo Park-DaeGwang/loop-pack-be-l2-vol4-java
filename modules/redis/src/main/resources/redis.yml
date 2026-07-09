@@ -13,6 +13,10 @@ datasource:
     replicas:
       - host: ${REDIS_REPLICA_1_HOST}
         port: ${REDIS_REPLICA_1_PORT}
+  redis-cache:
+    host: ${REDIS_CACHE_HOST}
+    port: ${REDIS_CACHE_PORT}
+    database: 0
 
 ---
 spring.config.activate.on-profile: local, test
@@ -25,6 +29,10 @@ datasource:
     replicas:
       - host: localhost
         port: 6380
+  redis-cache:
+    host: localhost
+    port: 6381
+    database: 0
 
 ---
 spring.config.activate.on-profile: dev
