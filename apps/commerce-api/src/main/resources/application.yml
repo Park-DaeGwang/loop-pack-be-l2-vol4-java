@@ -76,8 +76,9 @@ resilience4j:
         wait-duration-in-open-state: 5s           # Open 후 5s 대기, 이후 Half-Open 전환
         permitted-number-of-calls-in-half-open-state: 3
         record-exceptions:
-          - io.lettuce.core.RedisConnectionException
-          - io.lettuce.core.RedisCommandTimeoutException
+          - io.lettuce.core.RedisException
+          - org.springframework.data.redis.RedisConnectionFailureException
+          - org.springframework.data.redis.RedisSystemException
 
 ---
 spring:
