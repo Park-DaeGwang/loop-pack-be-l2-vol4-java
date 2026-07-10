@@ -28,7 +28,15 @@ public class QueueTokenScheduler {
             return;
         }
         List<UUID> userIds = waitingQueueService.popBatch(queueDynamicConfig.batchSize());
-        log.info("QueueTokenScheduler issued {} tokens", userIds.size());
-        userIds.forEach(waitingQueueService::issueToken);
+        int issued = 0;
+        for (UUID userId : userIds) {
+            try {
+                waitingQueueService.issueToken(userId);
+                issued++;
+            } catch (Exception e) {
+                log.error("QueueTokenScheduler failed to issue token for userId={}", userId, e);
+            }
+        }
+        log.info("QueueTokenScheduler issued {}/{} tokens", issued, userIds.size());
     }
 }

@@ -1,6 +1,7 @@
 package com.loopers.interfaces.api;
 
 import com.loopers.domain.queue.QueueDynamicConfig;
+import com.loopers.domain.queue.QueueTokenScheduler;
 import com.loopers.domain.queue.WaitingQueueService;
 import com.loopers.fixture.UserFixture;
 import com.loopers.interfaces.api.common.interceptor.QueueTokenInterceptor;
@@ -15,6 +16,7 @@ import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.boot.test.web.client.TestRestTemplate;
 import org.springframework.core.ParameterizedTypeReference;
 import org.springframework.http.HttpEntity;
@@ -47,6 +49,9 @@ class QueueV1ApiE2ETest {
 
     @Autowired
     private QueueDynamicConfig queueDynamicConfig;
+
+    @MockBean
+    private QueueTokenScheduler queueTokenScheduler;
 
     @Autowired
     private DatabaseCleanUp databaseCleanUp;
