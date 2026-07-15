@@ -9,7 +9,9 @@ import com.loopers.interfaces.api.common.response.PageResponse;
 import com.loopers.interfaces.api.order.OrderV1Dto;
 import com.loopers.interfaces.api.product.ProductV1Dto;
 import com.loopers.interfaces.api.user.UserV1Dto;
+import com.loopers.domain.queue.WaitingQueueService;
 import com.loopers.utils.DatabaseCleanUp;
+import com.loopers.utils.RedisCleanUp;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -46,15 +48,23 @@ class OrderAdminV1ApiE2ETest {
     @Autowired
     private DatabaseCleanUp databaseCleanUp;
 
+    @Autowired
+    private RedisCleanUp redisCleanUp;
+
+    @Autowired
+    private WaitingQueueService waitingQueueService;
+
+    private UUID userId;
     private UUID productId;
 
     @BeforeEach
     void setUp() {
-        testRestTemplate.exchange(
+        ResponseEntity<ApiResponse<UserV1Dto.RegisterResponse>> userResp = testRestTemplate.exchange(
             USERS_URL, HttpMethod.POST,
             new HttpEntity<>(UserFixture.createRequest()),
             new ParameterizedTypeReference<ApiResponse<UserV1Dto.RegisterResponse>>() {}
         );
+        userId = userResp.getBody().data().id();
 
         ResponseEntity<ApiResponse<BrandV1Dto.BrandResponse>> brandResp = testRestTemplate.exchange(
             BRANDS_URL, HttpMethod.POST,
@@ -76,6 +86,7 @@ class OrderAdminV1ApiE2ETest {
     @AfterEach
     void tearDown() {
         databaseCleanUp.truncateAllTables();
+        redisCleanUp.truncateAll();
     }
 
     private HttpHeaders authHeaders() {
@@ -92,8 +103,10 @@ class OrderAdminV1ApiE2ETest {
     }
 
     private HttpHeaders orderHeaders() {
+        waitingQueueService.issueToken(userId);
         HttpHeaders headers = authHeaders();
         headers.set("Idempotency-Key", UUID.randomUUID().toString());
+        headers.set("X-Queue-Token", waitingQueueService.findToken(userId).orElseThrow());
         return headers;
     }
 

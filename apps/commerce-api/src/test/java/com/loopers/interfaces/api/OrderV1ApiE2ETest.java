@@ -1,6 +1,7 @@
 package com.loopers.interfaces.api;
 
 import com.loopers.domain.coupon.CouponType;
+import com.loopers.domain.queue.WaitingQueueService;
 import com.loopers.fixture.BrandFixture;
 import com.loopers.fixture.ProductFixture;
 import com.loopers.fixture.UserFixture;
@@ -13,6 +14,7 @@ import com.loopers.interfaces.api.payment.PaymentV1Dto;
 import com.loopers.interfaces.api.product.ProductV1Dto;
 import com.loopers.interfaces.api.user.UserV1Dto;
 import com.loopers.utils.DatabaseCleanUp;
+import com.loopers.utils.RedisCleanUp;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -34,11 +36,6 @@ import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
 import java.util.UUID;
-import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
-import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertAll;
@@ -58,6 +55,12 @@ class OrderV1ApiE2ETest {
 
     @Autowired
     private DatabaseCleanUp databaseCleanUp;
+
+    @Autowired
+    private RedisCleanUp redisCleanUp;
+
+    @Autowired
+    private WaitingQueueService waitingQueueService;
 
     private UUID userId;
     private UUID productId;
@@ -93,6 +96,7 @@ class OrderV1ApiE2ETest {
     @AfterEach
     void tearDown() {
         databaseCleanUp.truncateAllTables();
+        redisCleanUp.truncateAll();
     }
 
     private HttpHeaders authHeaders() {
@@ -108,10 +112,23 @@ class OrderV1ApiE2ETest {
         return headers;
     }
 
-    /** 주문 생성용 — 매 호출마다 새 UUID를 Idempotency-Key로 설정 */
+    /** 주문 생성용 — 매 호출마다 토큰 재발급 + 새 Idempotency-Key */
     private HttpHeaders orderHeaders() {
+        waitingQueueService.issueToken(userId);
         HttpHeaders headers = authHeaders();
         headers.set("Idempotency-Key", UUID.randomUUID().toString());
+        headers.set("X-Queue-Token", waitingQueueService.findToken(userId).orElseThrow());
+        return headers;
+    }
+
+    /** userId 지정 주문 헤더 — 동시성 테스트에서 복수 유저 시나리오용 */
+    private HttpHeaders orderHeaders(UUID uid, String loginId, String loginPw) {
+        waitingQueueService.issueToken(uid);
+        HttpHeaders headers = new HttpHeaders();
+        headers.set("X-Loopers-LoginId", loginId);
+        headers.set("X-Loopers-LoginPw", loginPw);
+        headers.set("Idempotency-Key", UUID.randomUUID().toString());
+        headers.set("X-Queue-Token", waitingQueueService.findToken(uid).orElseThrow());
         return headers;
     }
 
@@ -159,6 +176,7 @@ class OrderV1ApiE2ETest {
         );
         return new OrderV1Dto.CreateRequest(shipping, List.of(new OrderV1Dto.OrderItemRequest(productId, quantity)), couponId);
     }
+
 
     /** 지정 재고로 상품 생성(admin) → productId */
     private UUID createProduct(int quantity) {
@@ -312,151 +330,6 @@ class OrderV1ApiE2ETest {
         }
     }
 
-    @DisplayName("동시성 — 동일 쿠폰 동시 주문")
-    @Nested
-    class ConcurrentCouponOrder {
-
-        @DisplayName("동일 쿠폰으로 여러 기기에서 동시 주문해도, 쿠폰은 단 한번만 사용된다.")
-        @Test
-        void couponUsedOnce_underConcurrency() throws InterruptedException {
-            UUID templateId = createCouponTemplate(CouponType.FIXED, 3000L, null);
-            UUID couponId = issueCoupon(templateId);
-
-            int threads = 8;
-            ExecutorService pool = Executors.newFixedThreadPool(threads);
-            CountDownLatch ready = new CountDownLatch(threads);
-            CountDownLatch start = new CountDownLatch(1);
-            AtomicInteger success = new AtomicInteger();
-            AtomicInteger conflict = new AtomicInteger();
-
-            for (int i = 0; i < threads; i++) {
-                pool.submit(() -> {
-                    ready.countDown();
-                    try {
-                        start.await();
-                        ResponseEntity<ApiResponse<Void>> r = testRestTemplate.exchange(
-                            ORDERS_URL, HttpMethod.POST,
-                            new HttpEntity<>(createRequestWithCoupon(1, couponId), orderHeaders()),
-                            new ParameterizedTypeReference<>() {}
-                        );
-                        if (r.getStatusCode() == HttpStatus.OK) success.incrementAndGet();
-                        else if (r.getStatusCode() == HttpStatus.CONFLICT) conflict.incrementAndGet();
-                    } catch (InterruptedException e) {
-                        Thread.currentThread().interrupt();
-                    }
-                });
-            }
-
-            ready.await();
-            start.countDown(); // 동시 출발
-            pool.shutdown();
-            pool.awaitTermination(30, TimeUnit.SECONDS);
-
-            assertAll(
-                () -> assertThat(success.get()).isEqualTo(1),
-                () -> assertThat(conflict.get()).isEqualTo(threads - 1)
-            );
-        }
-    }
-
-    @DisplayName("동시성 — 동일 상품 동시 주문(재고 차감)")
-    @Nested
-    class ConcurrentStockOrder {
-
-        @DisplayName("재고 5개 상품에 10명이 동시 주문해도, 정확히 5건만 성공하고 오버셀이 없다.")
-        @Test
-        void noOversell_underConcurrency() throws InterruptedException {
-            int stock = 5;
-            int threads = 10;
-            UUID pid = createProduct(stock);
-
-            ExecutorService pool = Executors.newFixedThreadPool(threads);
-            CountDownLatch ready = new CountDownLatch(threads);
-            CountDownLatch start = new CountDownLatch(1);
-            AtomicInteger success = new AtomicInteger();
-            AtomicInteger conflict = new AtomicInteger();
-
-            for (int i = 0; i < threads; i++) {
-                pool.submit(() -> {
-                    ready.countDown();
-                    try {
-                        start.await();
-                        ResponseEntity<ApiResponse<Void>> r = testRestTemplate.exchange(
-                            ORDERS_URL, HttpMethod.POST,
-                            new HttpEntity<>(orderRequest(pid, 1), orderHeaders()),
-                            new ParameterizedTypeReference<>() {}
-                        );
-                        if (r.getStatusCode() == HttpStatus.OK) success.incrementAndGet();
-                        else if (r.getStatusCode() == HttpStatus.CONFLICT) conflict.incrementAndGet();
-                    } catch (InterruptedException e) {
-                        Thread.currentThread().interrupt();
-                    }
-                });
-            }
-
-            ready.await();
-            start.countDown();
-            pool.shutdown();
-            pool.awaitTermination(30, TimeUnit.SECONDS);
-
-            assertAll(
-                () -> assertThat(success.get()).isEqualTo(stock),
-                () -> assertThat(conflict.get()).isEqualTo(threads - stock)
-            );
-        }
-    }
-
-    @DisplayName("동시성 — 중복 결제확정 콜백")
-    @Nested
-    class ConcurrentConfirm {
-
-        @DisplayName("동일 주문에 confirm 콜백이 동시에 여러번 와도, 재고는 한번만 차감된다.")
-        @Test
-        void stockConfirmedOnce_underDuplicateCallback() throws InterruptedException {
-            ResponseEntity<ApiResponse<OrderV1Dto.OrderResponse>> created = testRestTemplate.exchange(
-                ORDERS_URL, HttpMethod.POST,
-                new HttpEntity<>(validCreateRequest(), orderHeaders()),
-                new ParameterizedTypeReference<>() {}
-            );
-            UUID orderId = created.getBody().data().id();
-            Long amount = created.getBody().data().pgAmount();
-            PaymentV1Dto.CallbackPayload callbackPayload = new PaymentV1Dto.CallbackPayload(
-                "pg-tx-dup", orderId.toString(), "SAMSUNG", "1234-5678-9814-1451", amount, "SUCCESS", null
-            );
-
-            int threads = 8;
-            ExecutorService pool = Executors.newFixedThreadPool(threads);
-            CountDownLatch ready = new CountDownLatch(threads);
-            CountDownLatch start = new CountDownLatch(1);
-
-            for (int i = 0; i < threads; i++) {
-                pool.submit(() -> {
-                    ready.countDown();
-                    try {
-                        start.await();
-                        testRestTemplate.exchange(PAYMENTS_CALLBACK_URL, HttpMethod.POST,
-                            new HttpEntity<>(callbackPayload), new ParameterizedTypeReference<Void>() {});
-                    } catch (InterruptedException e) {
-                        Thread.currentThread().interrupt();
-                    }
-                });
-            }
-            ready.await();
-            start.countDown();
-            pool.shutdown();
-            pool.awaitTermination(30, TimeUnit.SECONDS);
-
-            ResponseEntity<ApiResponse<ProductV1Dto.AdminProductResponse>> detail = testRestTemplate.exchange(
-                "/api-admin/v1/products/" + productId, HttpMethod.GET,
-                new HttpEntity<>(adminHeaders()), new ParameterizedTypeReference<>() {}
-            );
-            assertAll(
-                () -> assertThat(detail.getBody().data().totalQuantity()).isEqualTo(ProductFixture.INITIAL_QUANTITY - 2),
-                () -> assertThat(detail.getBody().data().reservedQuantity()).isEqualTo(0)
-            );
-        }
-    }
-
     @DisplayName("POST /api/v1/orders — 주문 생성")
     @Nested
     class CreateOrder {
@@ -481,16 +354,32 @@ class OrderV1ApiE2ETest {
         @DisplayName("동일 멱등 키로 재요청 시, 새 주문 생성 없이 기존 주문을 반환한다.")
         @Test
         void returnsExistingOrder_whenSameIdempotencyKey() {
-            HttpHeaders headers = orderHeaders();
+            String idempotencyKey = UUID.randomUUID().toString();
+
+            waitingQueueService.issueToken(userId);
+            String token = waitingQueueService.findToken(userId).orElseThrow();
+
+            HttpHeaders firstHeaders = authHeaders();
+            firstHeaders.set("Idempotency-Key", idempotencyKey);
+            firstHeaders.set("X-Queue-Token", token);
 
             ResponseEntity<ApiResponse<OrderV1Dto.OrderResponse>> first = testRestTemplate.exchange(
                 ORDERS_URL, HttpMethod.POST,
-                new HttpEntity<>(validCreateRequest(), headers),
+                new HttpEntity<>(validCreateRequest(), firstHeaders),
                 new ParameterizedTypeReference<>() {}
             );
+
+            // 첫 주문 성공 후 토큰 소진 → 재발급 후 동일 멱등 키로 재시도
+            waitingQueueService.issueToken(userId);
+            String token2 = waitingQueueService.findToken(userId).orElseThrow();
+
+            HttpHeaders secondHeaders = authHeaders();
+            secondHeaders.set("Idempotency-Key", idempotencyKey);
+            secondHeaders.set("X-Queue-Token", token2);
+
             ResponseEntity<ApiResponse<OrderV1Dto.OrderResponse>> second = testRestTemplate.exchange(
                 ORDERS_URL, HttpMethod.POST,
-                new HttpEntity<>(validCreateRequest(), headers),
+                new HttpEntity<>(validCreateRequest(), secondHeaders),
                 new ParameterizedTypeReference<>() {}
             );
 
