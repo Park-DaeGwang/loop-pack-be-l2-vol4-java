@@ -5,6 +5,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.loopers.confg.kafka.KafkaConfig;
 import com.loopers.domain.metrics.ProductMetricsModel;
 import com.loopers.domain.metrics.ProductMetricsService;
+import com.loopers.domain.ranking.RankingScoreService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
@@ -15,6 +16,9 @@ import org.springframework.kafka.support.Acknowledgment;
 import org.springframework.stereotype.Component;
 
 import java.nio.charset.StandardCharsets;
+import java.time.Instant;
+import java.time.ZoneId;
+import java.time.ZonedDateTime;
 import java.util.List;
 import java.util.UUID;
 
@@ -26,6 +30,7 @@ public class OrderEventsConsumer {
     private static final String EVENT_TYPE_HEADER = "eventType";
 
     private final ProductMetricsService productMetricsService;
+    private final RankingScoreService rankingScoreService;
     private final ObjectMapper objectMapper;
 
     @KafkaListener(topics = "order-events", groupId = "order-metrics-consumer", containerFactory = KafkaConfig.BATCH_LISTENER)
@@ -49,12 +54,25 @@ public class OrderEventsConsumer {
             return;
         }
         OrderEventPayload payload = objectMapper.readValue((String) record.value(), OrderEventPayload.class);
+        ZonedDateTime eventTime = ZonedDateTime.ofInstant(Instant.ofEpochMilli(record.timestamp()), ZoneId.systemDefault());
 
         productMetricsService.applyIfNotHandled(payload.eventId(), () -> {
             for (OrderItemPayload item : payload.items()) {
                 productMetricsService.applyToProductUnordered(item.productId(), ProductMetricsModel::incrementSales);
             }
         });
+
+        for (OrderItemPayload item : payload.items()) {
+            applyRankingScore(() -> rankingScoreService.applyOrder(item.productId(), item.quantity(), eventTime));
+        }
+    }
+
+    private void applyRankingScore(Runnable action) {
+        try {
+            action.run();
+        } catch (Exception e) {
+            log.warn("랭킹 점수 갱신 실패 — best-effort, 무시함", e);
+        }
     }
 
     private String headerValue(ConsumerRecord<Object, Object> record, String key) {

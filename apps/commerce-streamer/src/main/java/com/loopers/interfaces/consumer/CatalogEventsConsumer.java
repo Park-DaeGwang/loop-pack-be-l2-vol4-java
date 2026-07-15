@@ -5,6 +5,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.loopers.confg.kafka.KafkaConfig;
 import com.loopers.domain.metrics.ProductMetricsModel;
 import com.loopers.domain.metrics.ProductMetricsService;
+import com.loopers.domain.ranking.RankingScoreService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
@@ -29,6 +30,7 @@ public class CatalogEventsConsumer {
     private static final String EVENT_TYPE_HEADER = "eventType";
 
     private final ProductMetricsService productMetricsService;
+    private final RankingScoreService rankingScoreService;
     private final ObjectMapper objectMapper;
 
     @KafkaListener(topics = "catalog-events", groupId = "catalog-metrics-consumer", containerFactory = KafkaConfig.BATCH_LISTENER)
@@ -55,13 +57,29 @@ public class CatalogEventsConsumer {
         ZonedDateTime eventTime = ZonedDateTime.ofInstant(Instant.ofEpochMilli(record.timestamp()), ZoneId.systemDefault());
 
         switch (eventType) {
-            case "ProductLikedEvent" -> productMetricsService.applyIfNotHandled(payload.eventId(), () ->
-                productMetricsService.applyToProduct(payload.productId(), eventTime, (m, t) -> m.incrementLike(t)));
-            case "ProductUnlikedEvent" -> productMetricsService.applyIfNotHandled(payload.eventId(), () ->
-                productMetricsService.applyToProduct(payload.productId(), eventTime, (m, t) -> m.decrementLike(t)));
-            case "ProductViewedEvent" -> productMetricsService.applyIfNotHandled(payload.eventId(), () ->
-                productMetricsService.applyToProductUnordered(payload.productId(), ProductMetricsModel::incrementView));
+            case "ProductLikedEvent" -> {
+                productMetricsService.applyIfNotHandled(payload.eventId(), () ->
+                    productMetricsService.applyToProduct(payload.productId(), eventTime, (m, t) -> m.incrementLike(t)));
+                applyRankingScore(() -> rankingScoreService.applyLike(payload.productId(), eventTime));
+            }
+            case "ProductUnlikedEvent" -> {
+                productMetricsService.applyIfNotHandled(payload.eventId(), () ->
+                    productMetricsService.applyToProduct(payload.productId(), eventTime, (m, t) -> m.decrementLike(t)));
+                applyRankingScore(() -> rankingScoreService.applyUnlike(payload.productId(), eventTime));
+            }
+            case "ProductViewedEvent" -> {
+                productMetricsService.applyToProductUnordered(payload.productId(), ProductMetricsModel::incrementView);
+                applyRankingScore(() -> rankingScoreService.applyView(payload.productId(), eventTime));
+            }
             default -> log.warn("알 수 없는 eventType — {}", eventType);
+        }
+    }
+
+    private void applyRankingScore(Runnable action) {
+        try {
+            action.run();
+        } catch (Exception e) {
+            log.warn("랭킹 점수 갱신 실패 — best-effort, 무시함", e);
         }
     }
 

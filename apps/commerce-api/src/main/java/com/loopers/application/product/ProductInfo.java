@@ -18,7 +18,8 @@ public record ProductInfo(
     int reservedQuantity,
     int availableQuantity,
     ZonedDateTime createdAt,
-    ZonedDateTime deletedAt
+    ZonedDateTime deletedAt,
+    Long rank
 ) {
     public static ProductInfo from(ProductModel product, StockModel stock) {
         return new ProductInfo(
@@ -32,7 +33,8 @@ public record ProductInfo(
             stock.getReservedQuantity(),
             stock.getAvailableQuantity(),
             product.getCreatedAt(),
-            product.getDeletedAt()
+            product.getDeletedAt(),
+            null
         );
     }
 
@@ -48,7 +50,25 @@ public record ProductInfo(
             stock.getReservedQuantity(),
             stock.getAvailableQuantity(),
             snapshot.createdAt(),
-            snapshot.deletedAt()
+            snapshot.deletedAt(),
+            null
+        );
+    }
+
+    public static ProductInfo from(ProductCacheDto snapshot, StockModel stock, Long rank) {
+        return new ProductInfo(
+            snapshot.id(),
+            snapshot.name(),
+            snapshot.description(),
+            snapshot.price(),
+            snapshot.brandName(),
+            snapshot.likeCount(),
+            stock.getTotalQuantity(),
+            stock.getReservedQuantity(),
+            stock.getAvailableQuantity(),
+            snapshot.createdAt(),
+            snapshot.deletedAt(),
+            rank
         );
     }
 }
