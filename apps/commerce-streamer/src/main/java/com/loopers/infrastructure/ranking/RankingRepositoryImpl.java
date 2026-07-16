@@ -12,8 +12,6 @@ import java.util.UUID;
 @Repository
 public class RankingRepositoryImpl implements RankingRepository {
 
-    private static final Duration TTL = Duration.ofDays(2);
-
     private final RedisTemplate<String, String> redisTemplate;
 
     public RankingRepositoryImpl(
@@ -23,11 +21,11 @@ public class RankingRepositoryImpl implements RankingRepository {
     }
 
     @Override
-    public void incrementScore(String rankingKey, UUID productId, double delta) {
+    public void incrementScore(String rankingKey, UUID productId, double delta, Duration ttl) {
         redisTemplate.opsForZSet().incrementScore(rankingKey, productId.toString(), delta);
-        Long ttl = redisTemplate.getExpire(rankingKey);
-        if (ttl == null || ttl < 0) {
-            redisTemplate.expire(rankingKey, TTL);
+        Long expire = redisTemplate.getExpire(rankingKey);
+        if (expire == null || expire < 0) {
+            redisTemplate.expire(rankingKey, ttl);
         }
     }
 }

@@ -4,11 +4,13 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 
+import java.time.Duration;
 import java.time.ZonedDateTime;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.within;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyDouble;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.mock;
@@ -37,7 +39,8 @@ class RankingScoreServiceTest {
 
         rankingScoreService.applyView(productId, eventTime);
 
-        verify(rankingRepository).incrementScore("ranking:all:20260715", productId, 0.1);
+        verify(rankingRepository).incrementScore("ranking:all:20260715", productId, 0.1, Duration.ofDays(2));
+        verify(rankingRepository).incrementScore("ranking:hourly:2026071510", productId, 0.1, Duration.ofHours(4));
     }
 
     @Test
@@ -47,7 +50,8 @@ class RankingScoreServiceTest {
 
         rankingScoreService.applyLike(productId, eventTime);
 
-        verify(rankingRepository).incrementScore("ranking:all:20260715", productId, 0.2);
+        verify(rankingRepository).incrementScore("ranking:all:20260715", productId, 0.2, Duration.ofDays(2));
+        verify(rankingRepository).incrementScore("ranking:hourly:2026071510", productId, 0.2, Duration.ofHours(4));
     }
 
     @Test
@@ -57,7 +61,8 @@ class RankingScoreServiceTest {
 
         rankingScoreService.applyUnlike(productId, eventTime);
 
-        verify(rankingRepository).incrementScore("ranking:all:20260715", productId, -0.2);
+        verify(rankingRepository).incrementScore("ranking:all:20260715", productId, -0.2, Duration.ofDays(2));
+        verify(rankingRepository).incrementScore("ranking:hourly:2026071510", productId, -0.2, Duration.ofHours(4));
     }
 
     @Test
@@ -71,7 +76,8 @@ class RankingScoreServiceTest {
         verify(rankingRepository).incrementScore(
             org.mockito.ArgumentMatchers.eq("ranking:all:20260715"),
             org.mockito.ArgumentMatchers.eq(productId),
-            deltaCaptor.capture()
+            deltaCaptor.capture(),
+            org.mockito.ArgumentMatchers.eq(Duration.ofDays(2))
         );
         assertThat(deltaCaptor.getValue()).isCloseTo(2.1, within(0.001));
     }
@@ -83,6 +89,7 @@ class RankingScoreServiceTest {
 
         rankingScoreService.applyView(productId, eventTime);
 
-        verify(rankingRepository).incrementScore("ranking:all:20260714", productId, 0.1);
+        verify(rankingRepository).incrementScore("ranking:all:20260714", productId, 0.1, Duration.ofDays(2));
+        verify(rankingRepository).incrementScore("ranking:hourly:2026071423", productId, 0.1, Duration.ofHours(4));
     }
 }

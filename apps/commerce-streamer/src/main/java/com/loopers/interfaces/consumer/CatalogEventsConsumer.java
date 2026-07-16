@@ -54,7 +54,7 @@ public class CatalogEventsConsumer {
             return;
         }
         CatalogEventPayload payload = objectMapper.readValue((String) record.value(), CatalogEventPayload.class);
-        ZonedDateTime eventTime = ZonedDateTime.ofInstant(Instant.ofEpochMilli(record.timestamp()), ZoneId.systemDefault());
+        ZonedDateTime eventTime = ZonedDateTime.ofInstant(Instant.ofEpochMilli(record.timestamp()), ZoneId.of("Asia/Seoul"));
 
         switch (eventType) {
             case "ProductLikedEvent" -> {

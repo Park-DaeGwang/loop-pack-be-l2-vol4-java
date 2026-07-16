@@ -54,7 +54,7 @@ public class OrderEventsConsumer {
             return;
         }
         OrderEventPayload payload = objectMapper.readValue((String) record.value(), OrderEventPayload.class);
-        ZonedDateTime eventTime = ZonedDateTime.ofInstant(Instant.ofEpochMilli(record.timestamp()), ZoneId.systemDefault());
+        ZonedDateTime eventTime = ZonedDateTime.ofInstant(Instant.ofEpochMilli(record.timestamp()), ZoneId.of("Asia/Seoul"));
 
         productMetricsService.applyIfNotHandled(payload.eventId(), () -> {
             for (OrderItemPayload item : payload.items()) {

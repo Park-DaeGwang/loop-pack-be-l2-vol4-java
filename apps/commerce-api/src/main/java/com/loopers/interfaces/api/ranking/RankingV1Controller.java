@@ -1,6 +1,7 @@
 package com.loopers.interfaces.api.ranking;
 
 import com.loopers.application.ranking.RankingFacade;
+import com.loopers.domain.ranking.RankingType;
 import com.loopers.interfaces.api.common.response.ApiResponse;
 import com.loopers.interfaces.api.common.response.PageResponse;
 import lombok.RequiredArgsConstructor;
@@ -20,11 +21,12 @@ public class RankingV1Controller implements RankingV1ApiSpec {
     @GetMapping
     @Override
     public ApiResponse<PageResponse<RankingV1Dto.RankingResponse>> getTopRanked(
+        @RequestParam(defaultValue = "DAILY") RankingType type,
         @RequestParam String date,
         @RequestParam(defaultValue = "20") int size,
         @RequestParam(defaultValue = "1") int page
     ) {
-        Page<RankingV1Dto.RankingResponse> result = rankingFacade.getTopRanked(date, page, size)
+        Page<RankingV1Dto.RankingResponse> result = rankingFacade.getTopRanked(type, date, page, size)
             .map(RankingV1Dto.RankingResponse::from);
         return ApiResponse.success(PageResponse.from(result));
     }

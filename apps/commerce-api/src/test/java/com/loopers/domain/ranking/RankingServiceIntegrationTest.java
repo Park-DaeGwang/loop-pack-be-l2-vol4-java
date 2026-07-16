@@ -28,11 +28,11 @@ class RankingServiceIntegrationTest {
     private RedisTemplate<String, String> redisTemplate;
 
     private static final String DATE = "20260715";
-    private static final String KEY = "ranking:all:20260715";
+    private static final String KEY  = "ranking:all:20260715";
 
     @AfterEach
     void tearDown() {
-        Set<String> keys = redisTemplate.keys("ranking:all:*");
+        Set<String> keys = redisTemplate.keys("ranking:*");
         if (keys != null && !keys.isEmpty()) {
             redisTemplate.delete(keys);
         }
@@ -47,7 +47,7 @@ class RankingServiceIntegrationTest {
         redisTemplate.opsForZSet().add(KEY, productB.toString(), 3.0);
         redisTemplate.opsForZSet().add(KEY, productC.toString(), 2.0);
 
-        List<UUID> result = rankingService.getTopRanked(DATE, 1, 10);
+        List<UUID> result = rankingService.getTopRanked(RankingType.DAILY, DATE, 1, 10);
 
         assertThat(result).containsExactly(productB, productC, productA);
     }
@@ -59,7 +59,7 @@ class RankingServiceIntegrationTest {
         redisTemplate.opsForZSet().add(KEY, productA.toString(), 2.0);
         redisTemplate.opsForZSet().add(KEY, productB.toString(), 1.0);
 
-        Long rank = rankingService.getRank(DATE, productA);
+        Long rank = rankingService.getRank(RankingType.DAILY, DATE, productA);
 
         assertThat(rank).isEqualTo(1L);
     }
@@ -68,7 +68,7 @@ class RankingServiceIntegrationTest {
     void 랭킹에_없는_상품_순위는_null이다() {
         UUID productId = UUID.randomUUID();
 
-        Long rank = rankingService.getRank(DATE, productId);
+        Long rank = rankingService.getRank(RankingType.DAILY, DATE, productId);
 
         assertThat(rank).isNull();
     }
@@ -78,8 +78,19 @@ class RankingServiceIntegrationTest {
         redisTemplate.opsForZSet().add(KEY, UUID.randomUUID().toString(), 1.0);
         redisTemplate.opsForZSet().add(KEY, UUID.randomUUID().toString(), 2.0);
 
-        long count = rankingService.countRanked(DATE);
+        long count = rankingService.countRanked(RankingType.DAILY, DATE);
 
         assertThat(count).isEqualTo(2L);
+    }
+
+    @Test
+    void 시간별_랭킹이_비어있으면_이전_시간_키로_fallback된다() {
+        String hourlyKey = "ranking:hourly:2026071618";
+        UUID productId = UUID.randomUUID();
+        redisTemplate.opsForZSet().add(hourlyKey, productId.toString(), 5.0);
+
+        List<UUID> result = rankingService.getTopRanked(RankingType.HOURLY, "2026071619", 1, 10);
+
+        assertThat(result).containsExactly(productId);
     }
 }

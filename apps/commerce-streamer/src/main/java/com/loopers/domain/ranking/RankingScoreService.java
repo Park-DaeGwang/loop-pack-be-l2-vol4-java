@@ -3,6 +3,8 @@ package com.loopers.domain.ranking;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 
+import java.time.Duration;
+import java.time.ZoneId;
 import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.UUID;
@@ -11,8 +13,13 @@ import java.util.UUID;
 @Component
 public class RankingScoreService {
 
-    private static final String KEY_PREFIX = "ranking:all:";
-    private static final DateTimeFormatter DATE_FORMAT = DateTimeFormatter.ofPattern("yyyyMMdd");
+    private static final ZoneId ZONE = ZoneId.of("Asia/Seoul");
+    private static final String DAILY_KEY_PREFIX  = "ranking:all:";
+    private static final String HOURLY_KEY_PREFIX = "ranking:hourly:";
+    private static final DateTimeFormatter DATE_FORMAT  = DateTimeFormatter.ofPattern("yyyyMMdd").withZone(ZONE);
+    private static final DateTimeFormatter HOUR_FORMAT  = DateTimeFormatter.ofPattern("yyyyMMddHH").withZone(ZONE);
+    private static final Duration TTL_DAILY  = Duration.ofDays(2);
+    private static final Duration TTL_HOURLY = Duration.ofHours(4);
 
     static final String EVENT_VIEW  = "VIEW";
     static final String EVENT_LIKE  = "LIKE";
@@ -27,25 +34,28 @@ public class RankingScoreService {
 
     public void applyView(UUID productId, ZonedDateTime eventTime) {
         double weight = rankingWeightService.getWeight(EVENT_VIEW, DEFAULT_WEIGHT_VIEW);
-        rankingRepository.incrementScore(toKey(eventTime), productId, weight);
+        rankingRepository.incrementScore(toDailyKey(eventTime),  productId, weight, TTL_DAILY);
+        rankingRepository.incrementScore(toHourlyKey(eventTime), productId, weight, TTL_HOURLY);
     }
 
     public void applyLike(UUID productId, ZonedDateTime eventTime) {
         double weight = rankingWeightService.getWeight(EVENT_LIKE, DEFAULT_WEIGHT_LIKE);
-        rankingRepository.incrementScore(toKey(eventTime), productId, weight);
+        rankingRepository.incrementScore(toDailyKey(eventTime),  productId, weight, TTL_DAILY);
+        rankingRepository.incrementScore(toHourlyKey(eventTime), productId, weight, TTL_HOURLY);
     }
 
     public void applyUnlike(UUID productId, ZonedDateTime eventTime) {
         double weight = rankingWeightService.getWeight(EVENT_LIKE, DEFAULT_WEIGHT_LIKE);
-        rankingRepository.incrementScore(toKey(eventTime), productId, -weight);
+        rankingRepository.incrementScore(toDailyKey(eventTime),  productId, -weight, TTL_DAILY);
+        rankingRepository.incrementScore(toHourlyKey(eventTime), productId, -weight, TTL_HOURLY);
     }
 
     public void applyOrder(UUID productId, int quantity, ZonedDateTime eventTime) {
         double weight = rankingWeightService.getWeight(EVENT_ORDER, DEFAULT_WEIGHT_ORDER);
-        rankingRepository.incrementScore(toKey(eventTime), productId, weight * quantity);
+        rankingRepository.incrementScore(toDailyKey(eventTime),  productId, weight * quantity, TTL_DAILY);
+        rankingRepository.incrementScore(toHourlyKey(eventTime), productId, weight * quantity, TTL_HOURLY);
     }
 
-    private String toKey(ZonedDateTime eventTime) {
-        return KEY_PREFIX + eventTime.format(DATE_FORMAT);
-    }
+    private String toDailyKey(ZonedDateTime t)  { return DAILY_KEY_PREFIX  + DATE_FORMAT.format(t); }
+    private String toHourlyKey(ZonedDateTime t) { return HOURLY_KEY_PREFIX + HOUR_FORMAT.format(t); }
 }
