@@ -4,8 +4,12 @@ import com.loopers.config.redis.RedisConfig;
 import com.loopers.domain.ranking.RankingRepository;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.data.redis.core.RedisTemplate;
+import org.springframework.data.redis.connection.zset.Aggregate;
+import org.springframework.data.redis.connection.zset.Weights;
 import org.springframework.stereotype.Repository;
 
+import java.time.Duration;
+import java.util.Collections;
 import java.util.List;
 import java.util.Set;
 import java.util.UUID;
@@ -45,5 +49,17 @@ public class RankingRepositoryImpl implements RankingRepository {
     @Override
     public Double findScore(String rankingKey, UUID productId) {
         return redisTemplate.opsForZSet().score(rankingKey, productId.toString());
+    }
+
+    @Override
+    public void carryOver(String fromKey, String toKey, double weight, Duration ttl) {
+        redisTemplate.opsForZSet().unionAndStore(
+            fromKey,
+            Collections.emptyList(),
+            toKey,
+            Aggregate.SUM,
+            Weights.of(weight)
+        );
+        redisTemplate.expire(toKey, ttl);
     }
 }

@@ -3,6 +3,10 @@ package com.loopers.domain.ranking;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 
+import java.time.Duration;
+import java.time.LocalDate;
+import java.time.ZoneId;
+import java.time.format.DateTimeFormatter;
 import java.util.List;
 import java.util.UUID;
 
@@ -11,6 +15,9 @@ import java.util.UUID;
 public class RankingService {
 
     private static final String KEY_PREFIX = "ranking:all:";
+    private static final DateTimeFormatter DATE_FORMAT = DateTimeFormatter.ofPattern("yyyyMMdd");
+    private static final Duration TTL = Duration.ofDays(2);
+    private static final double CARRY_OVER_WEIGHT = 0.1;
 
     private final RankingRepository rankingRepository;
 
@@ -30,5 +37,11 @@ public class RankingService {
 
     public Double getScore(String date, UUID productId) {
         return rankingRepository.findScore(KEY_PREFIX + date, productId);
+    }
+
+    public void carryOverForTomorrow() {
+        String today    = LocalDate.now(ZoneId.systemDefault()).format(DATE_FORMAT);
+        String tomorrow = LocalDate.now(ZoneId.systemDefault()).plusDays(1).format(DATE_FORMAT);
+        rankingRepository.carryOver(KEY_PREFIX + today, KEY_PREFIX + tomorrow, CARRY_OVER_WEIGHT, TTL);
     }
 }
