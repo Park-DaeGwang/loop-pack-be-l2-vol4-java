@@ -28,4 +28,18 @@ public class RankingRepositoryImpl implements RankingRepository {
             redisTemplate.expire(rankingKey, ttl);
         }
     }
+
+    @Override
+    public boolean existsKey(String rankingKey) {
+        return Boolean.TRUE.equals(redisTemplate.hasKey(rankingKey));
+    }
+
+    @Override
+    public void setScore(String rankingKey, UUID productId, double score, Duration ttl) {
+        redisTemplate.opsForZSet().add(rankingKey, productId.toString(), score);
+        Long expire = redisTemplate.getExpire(rankingKey);
+        if (expire == null || expire < 0) {
+            redisTemplate.expire(rankingKey, ttl);
+        }
+    }
 }
