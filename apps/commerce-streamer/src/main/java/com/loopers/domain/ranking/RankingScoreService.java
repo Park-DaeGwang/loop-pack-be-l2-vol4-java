@@ -14,26 +14,35 @@ public class RankingScoreService {
     private static final String KEY_PREFIX = "ranking:all:";
     private static final DateTimeFormatter DATE_FORMAT = DateTimeFormatter.ofPattern("yyyyMMdd");
 
-    private static final double WEIGHT_VIEW = 0.1;
-    private static final double WEIGHT_LIKE = 0.2;
-    private static final double WEIGHT_ORDER = 0.7;
+    static final String EVENT_VIEW  = "VIEW";
+    static final String EVENT_LIKE  = "LIKE";
+    static final String EVENT_ORDER = "ORDER";
+
+    static final double DEFAULT_WEIGHT_VIEW  = 0.1;
+    static final double DEFAULT_WEIGHT_LIKE  = 0.2;
+    static final double DEFAULT_WEIGHT_ORDER = 0.7;
 
     private final RankingRepository rankingRepository;
+    private final RankingWeightService rankingWeightService;
 
     public void applyView(UUID productId, ZonedDateTime eventTime) {
-        rankingRepository.incrementScore(toKey(eventTime), productId, WEIGHT_VIEW);
+        double weight = rankingWeightService.getWeight(EVENT_VIEW, DEFAULT_WEIGHT_VIEW);
+        rankingRepository.incrementScore(toKey(eventTime), productId, weight);
     }
 
     public void applyLike(UUID productId, ZonedDateTime eventTime) {
-        rankingRepository.incrementScore(toKey(eventTime), productId, WEIGHT_LIKE);
+        double weight = rankingWeightService.getWeight(EVENT_LIKE, DEFAULT_WEIGHT_LIKE);
+        rankingRepository.incrementScore(toKey(eventTime), productId, weight);
     }
 
     public void applyUnlike(UUID productId, ZonedDateTime eventTime) {
-        rankingRepository.incrementScore(toKey(eventTime), productId, -WEIGHT_LIKE);
+        double weight = rankingWeightService.getWeight(EVENT_LIKE, DEFAULT_WEIGHT_LIKE);
+        rankingRepository.incrementScore(toKey(eventTime), productId, -weight);
     }
 
     public void applyOrder(UUID productId, int quantity, ZonedDateTime eventTime) {
-        rankingRepository.incrementScore(toKey(eventTime), productId, WEIGHT_ORDER * quantity);
+        double weight = rankingWeightService.getWeight(EVENT_ORDER, DEFAULT_WEIGHT_ORDER);
+        rankingRepository.incrementScore(toKey(eventTime), productId, weight * quantity);
     }
 
     private String toKey(ZonedDateTime eventTime) {

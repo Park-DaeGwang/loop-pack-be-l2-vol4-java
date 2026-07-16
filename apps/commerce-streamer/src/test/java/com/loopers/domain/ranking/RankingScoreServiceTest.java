@@ -9,18 +9,25 @@ import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.within;
+import static org.mockito.ArgumentMatchers.anyDouble;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
 class RankingScoreServiceTest {
 
     private RankingRepository rankingRepository;
+    private RankingWeightService rankingWeightService;
     private RankingScoreService rankingScoreService;
 
     @BeforeEach
     void setUp() {
         rankingRepository = mock(RankingRepository.class);
-        rankingScoreService = new RankingScoreService(rankingRepository);
+        rankingWeightService = mock(RankingWeightService.class);
+        when(rankingWeightService.getWeight(anyString(), anyDouble()))
+            .thenAnswer(invocation -> invocation.getArgument(1));
+        rankingScoreService = new RankingScoreService(rankingRepository, rankingWeightService);
     }
 
     @Test
@@ -61,7 +68,11 @@ class RankingScoreServiceTest {
 
         rankingScoreService.applyOrder(productId, 3, eventTime);
 
-        verify(rankingRepository).incrementScore(org.mockito.ArgumentMatchers.eq("ranking:all:20260715"), org.mockito.ArgumentMatchers.eq(productId), deltaCaptor.capture());
+        verify(rankingRepository).incrementScore(
+            org.mockito.ArgumentMatchers.eq("ranking:all:20260715"),
+            org.mockito.ArgumentMatchers.eq(productId),
+            deltaCaptor.capture()
+        );
         assertThat(deltaCaptor.getValue()).isCloseTo(2.1, within(0.001));
     }
 
