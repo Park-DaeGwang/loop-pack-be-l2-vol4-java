@@ -5,6 +5,7 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 
+import java.time.LocalDate;
 import java.time.ZonedDateTime;
 import java.util.Optional;
 import java.util.UUID;
@@ -68,7 +69,7 @@ class ProductMetricsServiceTest {
             EventHandledRepository eventHandledRepository = mock(EventHandledRepository.class);
             ProductMetricsService service = new ProductMetricsService(productMetricsRepository, eventHandledRepository);
             UUID productId = UUID.randomUUID();
-            when(productMetricsRepository.findByProductId(productId)).thenReturn(Optional.empty());
+            when(productMetricsRepository.findByProductIdAndDate(any(), any())).thenReturn(Optional.empty());
 
             service.applyToProduct(productId, ZonedDateTime.now(), (m, t) -> m.incrementLike(t));
 
@@ -83,9 +84,9 @@ class ProductMetricsServiceTest {
             ProductMetricsService service = new ProductMetricsService(productMetricsRepository, eventHandledRepository);
             UUID productId = UUID.randomUUID();
             ZonedDateTime now = ZonedDateTime.now();
-            ProductMetricsModel existing = new ProductMetricsModel(productId);
+            ProductMetricsModel existing = new ProductMetricsModel(productId, LocalDate.now());
             existing.incrementLike(now);
-            when(productMetricsRepository.findByProductId(productId)).thenReturn(Optional.of(existing));
+            when(productMetricsRepository.findByProductIdAndDate(any(), any())).thenReturn(Optional.of(existing));
 
             service.applyToProduct(productId, now.minusSeconds(10), (m, t) -> m.incrementLike(t));
 
@@ -105,9 +106,9 @@ class ProductMetricsServiceTest {
             EventHandledRepository eventHandledRepository = mock(EventHandledRepository.class);
             ProductMetricsService service = new ProductMetricsService(productMetricsRepository, eventHandledRepository);
             UUID productId = UUID.randomUUID();
-            when(productMetricsRepository.findByProductId(productId)).thenReturn(Optional.empty());
+            when(productMetricsRepository.findByProductIdAndDate(any(), any())).thenReturn(Optional.empty());
 
-            service.applyToProductUnordered(productId, ProductMetricsModel::incrementView);
+            service.applyToProductUnordered(productId, ZonedDateTime.now(), ProductMetricsModel::incrementView);
 
             verify(productMetricsRepository).save(any());
         }
@@ -119,11 +120,11 @@ class ProductMetricsServiceTest {
             EventHandledRepository eventHandledRepository = mock(EventHandledRepository.class);
             ProductMetricsService service = new ProductMetricsService(productMetricsRepository, eventHandledRepository);
             UUID productId = UUID.randomUUID();
-            ProductMetricsModel existing = new ProductMetricsModel(productId);
+            ProductMetricsModel existing = new ProductMetricsModel(productId, LocalDate.now());
             existing.incrementLike(ZonedDateTime.now()); // lastEventAt을 미래 시점으로 미리 세팅
-            when(productMetricsRepository.findByProductId(productId)).thenReturn(Optional.of(existing));
+            when(productMetricsRepository.findByProductIdAndDate(any(), any())).thenReturn(Optional.of(existing));
 
-            service.applyToProductUnordered(productId, ProductMetricsModel::incrementView);
+            service.applyToProductUnordered(productId, ZonedDateTime.now(), ProductMetricsModel::incrementView);
 
             assertThat(existing.getViewCount()).isEqualTo(1);
             verify(productMetricsRepository).save(existing);

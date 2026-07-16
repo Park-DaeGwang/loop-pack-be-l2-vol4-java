@@ -68,7 +68,7 @@ public class OrderEventsConsumer {
 
         productMetricsService.applyIfNotHandled(payload.eventId(), () -> {
             for (OrderItemPayload item : payload.items()) {
-                productMetricsService.applyToProductUnordered(item.productId(), ProductMetricsModel::incrementSales);
+                productMetricsService.applyToProductUnordered(item.productId(), eventTime, ProductMetricsModel::incrementSales);
             }
         });
 

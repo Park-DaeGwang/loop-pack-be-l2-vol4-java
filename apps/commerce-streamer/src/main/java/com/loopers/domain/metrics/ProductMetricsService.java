@@ -7,6 +7,8 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.LocalDate;
+import java.time.ZoneId;
 import java.time.ZonedDateTime;
 import java.util.UUID;
 import java.util.function.BiConsumer;
@@ -16,6 +18,8 @@ import java.util.function.Consumer;
 @RequiredArgsConstructor
 @Component
 public class ProductMetricsService {
+
+    private static final ZoneId ZONE = ZoneId.of("Asia/Seoul");
 
     private final ProductMetricsRepository productMetricsRepository;
     private final EventHandledRepository eventHandledRepository;
@@ -37,8 +41,9 @@ public class ProductMetricsService {
 
     /** 상품 하나의 지표를 갱신한다. staleness 체크 포함, 자체 멱등 체크는 하지 않는다(호출자가 이벤트 단위로 처리). */
     public void applyToProduct(UUID productId, ZonedDateTime eventTime, BiConsumer<ProductMetricsModel, ZonedDateTime> operation) {
-        ProductMetricsModel metrics = productMetricsRepository.findByProductId(productId)
-            .orElseGet(() -> new ProductMetricsModel(productId));
+        LocalDate date = eventTime.withZoneSameInstant(ZONE).toLocalDate();
+        ProductMetricsModel metrics = productMetricsRepository.findByProductIdAndDate(productId, date)
+            .orElseGet(() -> new ProductMetricsModel(productId, date));
 
         if (metrics.isStale(eventTime)) {
             log.warn("오래된 이벤트 스킵 — productId={}, eventTime={}", productId, eventTime);
@@ -49,9 +54,10 @@ public class ProductMetricsService {
     }
 
     /** view/sales처럼 단순 누적이라 순서와 무관한 연산용 — staleness 체크 없이 항상 반영한다. */
-    public void applyToProductUnordered(UUID productId, Consumer<ProductMetricsModel> operation) {
-        ProductMetricsModel metrics = productMetricsRepository.findByProductId(productId)
-            .orElseGet(() -> new ProductMetricsModel(productId));
+    public void applyToProductUnordered(UUID productId, ZonedDateTime eventTime, Consumer<ProductMetricsModel> operation) {
+        LocalDate date = eventTime.withZoneSameInstant(ZONE).toLocalDate();
+        ProductMetricsModel metrics = productMetricsRepository.findByProductIdAndDate(productId, date)
+            .orElseGet(() -> new ProductMetricsModel(productId, date));
 
         operation.accept(metrics);
         productMetricsRepository.save(metrics);

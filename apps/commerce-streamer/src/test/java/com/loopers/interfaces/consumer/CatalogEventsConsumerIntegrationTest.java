@@ -3,6 +3,7 @@ package com.loopers.interfaces.consumer;
 import com.loopers.domain.metrics.ProductMetricsRepository;
 import com.loopers.utils.DatabaseCleanUp;
 import org.apache.kafka.clients.consumer.Consumer;
+import java.time.LocalDate;
 import org.apache.kafka.clients.consumer.ConsumerRecords;
 import org.apache.kafka.clients.producer.ProducerRecord;
 import org.junit.jupiter.api.AfterEach;
@@ -57,13 +58,13 @@ class CatalogEventsConsumerIntegrationTest {
         // assert — 컨슈머 처리는 비동기라 폴링으로 확인
         long deadline = System.currentTimeMillis() + 10000;
         while (System.currentTimeMillis() < deadline) {
-            var metrics = productMetricsRepository.findByProductId(productId);
+            var metrics = productMetricsRepository.findByProductIdAndDate(productId, LocalDate.now());
             if (metrics.isPresent() && metrics.get().getLikeCount() == 1) {
                 return;
             }
             Thread.sleep(200);
         }
-        assertThat(productMetricsRepository.findByProductId(productId))
+        assertThat(productMetricsRepository.findByProductIdAndDate(productId, LocalDate.now()))
             .hasValueSatisfying(m -> assertThat(m.getLikeCount()).isEqualTo(1));
     }
 

@@ -78,7 +78,7 @@ public class CatalogEventsConsumer {
                 rankingEvents.add(new RankingScoreService.BatchEvent("UNLIKE", payload.productId(), 1, eventTime));
             }
             case "ProductViewedEvent" -> {
-                productMetricsService.applyToProductUnordered(payload.productId(), ProductMetricsModel::incrementView);
+                productMetricsService.applyToProductUnordered(payload.productId(), eventTime, ProductMetricsModel::incrementView);
                 rankingEvents.add(new RankingScoreService.BatchEvent("VIEW", payload.productId(), 1, eventTime));
             }
             default -> log.warn("알 수 없는 eventType — {}", eventType);

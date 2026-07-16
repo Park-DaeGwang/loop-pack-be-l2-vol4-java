@@ -4,6 +4,7 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 
+import java.time.LocalDate;
 import java.time.ZonedDateTime;
 import java.util.UUID;
 
@@ -18,7 +19,7 @@ class ProductMetricsModelTest {
         @DisplayName("incrementLike 호출 시, likeCount가 1 증가하고 lastEventAt이 갱신된다.")
         @Test
         void incrementsLikeCount() {
-            ProductMetricsModel metrics = new ProductMetricsModel(UUID.randomUUID());
+            ProductMetricsModel metrics = new ProductMetricsModel(UUID.randomUUID(), LocalDate.now());
             ZonedDateTime eventTime = ZonedDateTime.now();
 
             metrics.incrementLike(eventTime);
@@ -30,7 +31,7 @@ class ProductMetricsModelTest {
         @DisplayName("decrementLike 호출 시, likeCount가 0 미만으로 내려가지 않는다.")
         @Test
         void decrementsLikeCount_neverBelowZero() {
-            ProductMetricsModel metrics = new ProductMetricsModel(UUID.randomUUID());
+            ProductMetricsModel metrics = new ProductMetricsModel(UUID.randomUUID(), LocalDate.now());
 
             metrics.decrementLike(ZonedDateTime.now());
 
@@ -40,7 +41,7 @@ class ProductMetricsModelTest {
         @DisplayName("incrementView 호출 시, viewCount가 1 증가하고 lastEventAt은 갱신되지 않는다.")
         @Test
         void incrementsViewCount() {
-            ProductMetricsModel metrics = new ProductMetricsModel(UUID.randomUUID());
+            ProductMetricsModel metrics = new ProductMetricsModel(UUID.randomUUID(), LocalDate.now());
 
             metrics.incrementView();
 
@@ -51,7 +52,7 @@ class ProductMetricsModelTest {
         @DisplayName("incrementSales 호출 시, salesCount가 1 증가하고 lastEventAt은 갱신되지 않는다.")
         @Test
         void incrementsSalesCount() {
-            ProductMetricsModel metrics = new ProductMetricsModel(UUID.randomUUID());
+            ProductMetricsModel metrics = new ProductMetricsModel(UUID.randomUUID(), LocalDate.now());
 
             metrics.incrementSales();
 
@@ -67,7 +68,7 @@ class ProductMetricsModelTest {
         @DisplayName("lastEventAt이 없으면(최초), stale이 아니다.")
         @Test
         void notStale_whenNoLastEventAt() {
-            ProductMetricsModel metrics = new ProductMetricsModel(UUID.randomUUID());
+            ProductMetricsModel metrics = new ProductMetricsModel(UUID.randomUUID(), LocalDate.now());
 
             assertThat(metrics.isStale(ZonedDateTime.now())).isFalse();
         }
@@ -75,7 +76,7 @@ class ProductMetricsModelTest {
         @DisplayName("들어온 이벤트 시각이 lastEventAt보다 이전이면, stale이다.")
         @Test
         void isStale_whenEventTimeBeforeLastEventAt() {
-            ProductMetricsModel metrics = new ProductMetricsModel(UUID.randomUUID());
+            ProductMetricsModel metrics = new ProductMetricsModel(UUID.randomUUID(), LocalDate.now());
             ZonedDateTime now = ZonedDateTime.now();
             metrics.incrementLike(now);
 
@@ -85,7 +86,7 @@ class ProductMetricsModelTest {
         @DisplayName("들어온 이벤트 시각이 lastEventAt보다 이후면, stale이 아니다.")
         @Test
         void notStale_whenEventTimeAfterLastEventAt() {
-            ProductMetricsModel metrics = new ProductMetricsModel(UUID.randomUUID());
+            ProductMetricsModel metrics = new ProductMetricsModel(UUID.randomUUID(), LocalDate.now());
             ZonedDateTime now = ZonedDateTime.now();
             metrics.incrementLike(now);
 
