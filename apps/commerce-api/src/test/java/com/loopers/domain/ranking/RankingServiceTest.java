@@ -18,7 +18,8 @@ class RankingServiceTest {
     @BeforeEach
     void setUp() {
         rankingRepository = mock(RankingRepository.class);
-        rankingService = new RankingService(rankingRepository);
+        RankingSnapshotService rankingSnapshotService = mock(RankingSnapshotService.class);
+        rankingService = new RankingService(rankingRepository, rankingSnapshotService);
     }
 
     @Test
