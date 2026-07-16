@@ -103,6 +103,48 @@
 
 ---
 
+---
+
+## ✅ Checklist — Volume 9 (Redis ZSET 기반 상품 랭킹)
+
+### 📡 이벤트 적재 (commerce-streamer)
+
+- [x] Kafka 이벤트(VIEW/LIKE/UNLIKE/ORDER) 소비 후 Redis ZSET에 점수 적재
+- [x] 이벤트별 가중치 적용 (VIEW=0.1, LIKE=0.2, UNLIKE=-0.2, ORDER=0.7×수량)
+- [x] DAILY 키(`ranking:all:{yyyyMMdd}`) + HOURLY 키(`ranking:hourly:{yyyyMMddHH}`) 동시 적재
+- [x] TTL: DAILY 2일, HOURLY 4시간 — 신규 키 생성 시에만 설정
+- [x] 이벤트 시각 기준 Asia/Seoul 고정 (`ZoneId.systemDefault()` → `ZoneId.of("Asia/Seoul")`)
+
+### 🎯 랭킹 조회 (commerce-api)
+
+- [x] `GET /api/v1/rankings?type=DAILY|HOURLY&date=...` — 점수 내림차순 페이지네이션
+- [x] HOURLY 조회 시 최대 3시간 이전 fallback
+- [x] 상품 상세 조회 응답에 `rank`(1-based, 없으면 null) 포함 — DAILY 기준
+- [x] RankingType enum으로 DAILY/HOURLY 키 prefix 관리
+
+### ❄️ 콜드 스타트 완화
+
+- [x] 매일 23:50 carry-over 스케줄러 (`@Scheduled(cron = "0 50 23 * * *")`)
+- [x] `ZUNIONSTORE` WEIGHTS 0.1 — 당일 점수 × 10%를 익일 키에 사전 생성
+- [x] carry-over TTL: 익일 키 신규 생성 시에만 2일 설정
+
+### ⚙️ 가중치 실시간 조절
+
+- [x] `PUT /api-admin/v1/rankings/weights/{eventType}` — 관리자 가중치 변경 API
+- [x] `ranking_weight` 테이블 (`event_type` PK) + JPA 엔티티
+- [x] Redis 캐시(TTL 1시간, `GenericJackson2JsonRedisSerializer`) + `@CacheEvict` on update
+- [x] streamer `@Cacheable` — 이벤트 처리 시 가중치 캐시 우선 조회
+
+### 🧪 테스트
+
+- [x] RankingScoreServiceTest — 이벤트별 DAILY/HOURLY 키 verify, 날짜 경계 케이스
+- [x] RankingScoreServiceIntegrationTest — Redis ZSET 실제 적재 검증
+- [x] RankingServiceTest — offset 계산, 1-based rank, HOURLY fallback (단위)
+- [x] RankingServiceIntegrationTest — score 내림차순, HOURLY fallback (통합)
+- [x] RankingV1ApiE2ETest — 목록 점수 순 반환, 빈 목록, rank 있음/null (E2E)
+
+---
+
 ## 🗺 진행 순서 (쿠폰 주문 통합 = 슬라이스 5)
 
 기능 완성 → 동시성 검증 순. 각 단계 RED→GREEN.

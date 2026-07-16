@@ -380,6 +380,51 @@ CONFIRMED → CANCELLED (사용자 주문 취소)
 
 ---
 
+### 10. 상품 랭킹
+
+**액터**: 비로그인/로그인 회원, 관리자
+
+**시나리오**
+1. 사용자가 오늘의 인기 상품 랭킹을 조회한다.
+2. 상품 상세 페이지에서 해당 상품의 현재 랭킹 순위를 확인한다.
+3. 관리자가 이벤트 유형별 가중치를 실시간으로 변경한다.
+
+**기능 요구사항**
+
+| 기능 | 엔드포인트 | 인증 | 설명 |
+|---|---|---|---|
+| 랭킹 조회 | `GET /api/v1/rankings?type=DAILY&date=yyyyMMdd&size=20&page=1` | X | 일간/시간별 랭킹 상품 목록 (점수 내림차순) |
+| 랭킹 가중치 수정 | `PUT /api-admin/v1/rankings/weights/{eventType}` | O(LDAP) | 이벤트 유형별 점수 가중치 실시간 변경 |
+
+**랭킹 조회 쿼리 파라미터**
+
+| 파라미터 | 예시 | 설명 |
+|---|---|---|
+| type | DAILY / HOURLY | 랭킹 단위 (기본값 DAILY) |
+| date | 20260716 (DAILY) / 2026071619 (HOURLY) | 날짜 또는 시간 (필수) |
+| size | 20 | 페이지당 상품 수 (기본값 20) |
+| page | 1 | 페이지 번호 1-based (기본값 1) |
+
+**점수 가중치 정책**
+
+| 이벤트 유형(eventType) | 기본 가중치 | 설명 |
+|---|---|---|
+| VIEW | 0.1 | 상품 조회 1회당 점수 |
+| LIKE | 0.2 | 좋아요 1회당 점수 |
+| UNLIKE | -0.2 | 좋아요 취소 1회당 점수 (감점) |
+| ORDER | 0.7 × 수량 | 주문 1건당 (수량 반영) |
+
+**정책**
+- 랭킹 키: `ranking:all:{yyyyMMdd}` (DAILY), `ranking:hourly:{yyyyMMddHH}` (HOURLY)
+- TTL: DAILY 2일, HOURLY 4시간 (3시간 fallback + 여유)
+- HOURLY 타입 조회 시 현재 시간 키가 비어 있으면 최대 3시간 이전 키까지 자동 fallback
+- 콜드 스타트 완화: 매일 23:50 당일 DAILY 랭킹 × 0.1을 익일 키로 carry-over (신규 날 진입 시 빈 랭킹 방지)
+- 가중치는 DB(`ranking_weight` 테이블)에 저장하며 Redis 캐시(TTL 1시간) 적용. 관리자 API 호출 시 캐시 즉시 무효화
+- 상품 상세 조회(`GET /api/v1/products/{id}`) 응답에 `rank`(1-based, 없으면 null) 포함 — DAILY 기준
+- 점수 적재는 `commerce-streamer`가 Kafka 이벤트를 소비해 Redis ZSET에 best-effort로 기록
+
+---
+
 ### 9. 관리자 — 쿠폰 관리
 
 **액터**: 관리자 (`X-Loopers-Ldap: loopers.admin` 헤더 보유자)

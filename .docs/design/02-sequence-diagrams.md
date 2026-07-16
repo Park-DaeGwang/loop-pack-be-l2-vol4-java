@@ -492,3 +492,61 @@ sequenceDiagram
 - 재고 예약과 쿠폰 사용이 **하나의 트랜잭션**에 묶인다. 재고 부족·쿠폰 실패 어느 쪽이든 둘 다 롤백돼 정합성이 유지된다.
 - 할인액은 원금 기준으로 계산하며, 정률은 버림·할인액 상한은 원금이다. 최종 `pgAmount = originalAmount - discountAmount`가 PG 결제 금액이 된다.
 - 결제 실패 / 금액 불일치(섹션 2) 또는 PENDING 만료(섹션 4) 시, 재고 예약 해제와 함께 쿠폰도 `AVAILABLE`로 복구한다(`releaseCoupon(orderId)`).
+
+---
+
+## 10. 랭킹 점수 적재 (Kafka 이벤트 → Redis ZSET)
+
+**목적**: `commerce-streamer`가 Kafka 이벤트를 소비해 Redis ZSET에 상품 점수를 적재하는 흐름을 정의한다.
+**검증 포인트**: 이벤트별 가중치 적용, DAILY/HOURLY 키 동시 적재, DB 트랜잭션 커밋 이후 best-effort 처리.
+
+```mermaid
+sequenceDiagram
+    participant Kafka
+    participant Consumer as CatalogEvents/OrderEventsConsumer
+    participant WeightService as RankingWeightService
+    participant ScoreService as RankingScoreService
+    participant Redis
+
+    Kafka->>Consumer: 이벤트 수신 (VIEW / LIKE / UNLIKE / ORDER)
+    Consumer->>WeightService: getWeight(eventType, defaultWeight)
+    Note over WeightService: Redis 캐시(TTL 1hr) 우선 조회<br/>miss 시 DB(ranking_weight) 조회 후 캐시
+    WeightService-->>Consumer: weight
+
+    Consumer->>ScoreService: applyView(productId, eventTime)
+    Note over ScoreService: delta = weight (VIEW/LIKE/UNLIKE)<br/>delta = weight × quantity (ORDER)
+
+    ScoreService->>Redis: ZINCRBY ranking:all:{yyyyMMdd} delta {productId}
+    Note over Redis: 신규 키면 TTL 2일 설정 (기존 키는 TTL 유지)
+    ScoreService->>Redis: ZINCRBY ranking:hourly:{yyyyMMddHH} delta {productId}
+    Note over Redis: 신규 키면 TTL 4시간 설정
+```
+
+**읽는 포인트**
+- Kafka 이벤트는 DB 트랜잭션 커밋 이후 best-effort로 발행된다. Redis 적재 실패가 주문·좋아요 처리에 영향을 주지 않는다.
+- 점수는 DAILY 키(`ranking:all:{yyyyMMdd}`)와 HOURLY 키(`ranking:hourly:{yyyyMMddHH}`)에 동시 적재된다.
+- 가중치는 Redis 캐시에서 먼저 읽고, miss 시 DB 조회 후 캐시. TTL 1시간이 직접 DB 수정에 대한 최대 지연 방어선.
+- 키 신규 생성 시에만 TTL을 설정한다(`getExpire < 0` 조건). 이미 적재 중인 키에 TTL을 덮어쓰면 수명이 계속 연장되는 문제를 방지.
+- `eventTime`은 Kafka 메시지에 담긴 원본 이벤트 시각(Asia/Seoul 고정). 소비 시점이 아닌 이벤트 발생 시점 기준으로 키를 결정한다.
+
+---
+
+## 11. 랭킹 carry-over 스케줄러 (콜드 스타트 완화)
+
+**목적**: 날짜가 바뀔 때 랭킹이 초기화되는 콜드 스타트 문제를 당일 점수의 10%를 익일에 사전 적재해 완화하는 흐름을 정의한다.
+
+```mermaid
+sequenceDiagram
+    participant Scheduler as RankingScheduler (매일 23:50)
+    participant RankingService
+    participant Redis
+
+    Scheduler->>RankingService: carryOverForTomorrow()
+    RankingService->>Redis: ZUNIONSTORE ranking:all:{tomorrow} 1 ranking:all:{today} WEIGHTS 0.1
+    Note over Redis: 당일 점수 × 0.1을 익일 키에 복사<br/>익일 키 신규 생성 시에만 TTL 2일 설정
+```
+
+**읽는 포인트**
+- `ZUNIONSTORE` 단일 소스 사용: 다중 키 합산이 본래 목적이지만, 단일 fromKey × WEIGHTS 0.1로 점수 변환 복사에 활용한다.
+- 당일 23:50~자정 10분간 발생한 점수는 carry-over에 반영되지 않는다. 10분간 점수가 익일 선두를 뒤집을 확률이 낮고, 실무에서도 허용 가능한 수준으로 수용한다.
+- carry-over는 익일 랭킹의 시작점일 뿐이다. 이후 실제 이벤트 점수가 쌓이면 자연스럽게 희석된다.

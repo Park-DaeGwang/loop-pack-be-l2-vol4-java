@@ -172,6 +172,19 @@ classDiagram
         +displayStatus(now) UserCouponStatus
     }
 
+    class RankingWeightEntity {
+        +String eventType
+        +double weight
+        +updateWeight(weight) void
+    }
+
+    class RankingType {
+        <<enumeration>>
+        DAILY
+        HOURLY
+        +toKey(date) String
+    }
+
     class CouponType {
         <<enumeration>>
         FIXED
