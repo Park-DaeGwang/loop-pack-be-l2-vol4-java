@@ -7,7 +7,7 @@ import java.util.List;
 
 public interface MvProductRankWeeklyJpaRepository extends JpaRepository<MvProductRankWeeklyEntity, Long> {
 
-    List<MvProductRankWeeklyEntity> findByYearWeekAndBatchIdOrderByRankAsc(int yearWeek, long batchId);
+    List<MvProductRankWeeklyEntity> findByYearWeekAndBatchIdOrderByRankingOrderAsc(int yearWeek, long batchId);
 
     long countByYearWeekAndBatchId(int yearWeek, long batchId);
 }

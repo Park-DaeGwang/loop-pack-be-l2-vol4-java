@@ -197,7 +197,7 @@ public class WeeklyRankingJobConfig {
                     FROM mv_product_rank_weekly
                     WHERE year_week = ? AND batch_id = ?
                 ) r ON w.product_id = r.product_id AND w.year_week = ? AND w.batch_id = ?
-                SET w.rank = r.rn
+                SET w.ranking_order = r.rn
                 """, yearWeek, batchId, yearWeek, batchId);
 
             return RepeatStatus.FINISHED;

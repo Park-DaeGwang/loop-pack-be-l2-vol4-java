@@ -175,12 +175,12 @@ public class MonthlyRankingJobConfig {
 
             jdbcTemplate.update("""
                 DELETE FROM mv_product_rank_monthly
-                WHERE year_month = ? AND batch_id = ?
+                WHERE period_month = ? AND batch_id = ?
                   AND product_id NOT IN (
                       SELECT product_id FROM (
                           SELECT product_id
                           FROM mv_product_rank_monthly
-                          WHERE year_month = ? AND batch_id = ?
+                          WHERE period_month = ? AND batch_id = ?
                           ORDER BY score DESC
                           LIMIT 100
                       ) AS top100
@@ -193,9 +193,9 @@ public class MonthlyRankingJobConfig {
                     SELECT product_id,
                            ROW_NUMBER() OVER (ORDER BY score DESC) AS rn
                     FROM mv_product_rank_monthly
-                    WHERE year_month = ? AND batch_id = ?
-                ) r ON m.product_id = r.product_id AND m.year_month = ? AND m.batch_id = ?
-                SET m.rank = r.rn
+                    WHERE period_month = ? AND batch_id = ?
+                ) r ON m.product_id = r.product_id AND m.period_month = ? AND m.batch_id = ?
+                SET m.ranking_order = r.rn
                 """, yearMonth, batchId, yearMonth, batchId);
 
             return RepeatStatus.FINISHED;

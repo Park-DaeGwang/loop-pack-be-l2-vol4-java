@@ -41,12 +41,12 @@ public class MvRankingService {
 
     private List<RankingInfo> buildWeeklyRankingInfos(int yearWeek, long batchId) {
         List<MvProductRankWeeklyEntity> rows =
-            weeklyRepository.findByYearWeekAndBatchIdOrderByRankAsc(yearWeek, batchId);
+            weeklyRepository.findByYearWeekAndBatchIdOrderByRankingOrderAsc(yearWeek, batchId);
         List<RankingInfo> result = new ArrayList<>(rows.size());
         for (MvProductRankWeeklyEntity row : rows) {
             try {
                 ProductCacheDto product = productService.getActiveSnapshot(row.getProductId());
-                result.add(new RankingInfo(row.getRank(), row.getScore(),
+                result.add(new RankingInfo(row.getRankingOrder(), row.getScore(),
                     product.id(), product.name(), product.brandName(), product.price()));
             } catch (CoreException e) {
                 if (e.getErrorType() != ErrorType.NOT_FOUND) throw e;
@@ -57,12 +57,12 @@ public class MvRankingService {
 
     private List<RankingInfo> buildMonthlyRankingInfos(int yearMonth, long batchId) {
         List<MvProductRankMonthlyEntity> rows =
-            monthlyRepository.findByYearMonthAndBatchIdOrderByRankAsc(yearMonth, batchId);
+            monthlyRepository.findByPeriodMonthAndBatchIdOrderByRankingOrderAsc(yearMonth, batchId);
         List<RankingInfo> result = new ArrayList<>(rows.size());
         for (MvProductRankMonthlyEntity row : rows) {
             try {
                 ProductCacheDto product = productService.getActiveSnapshot(row.getProductId());
-                result.add(new RankingInfo(row.getRank(), row.getScore(),
+                result.add(new RankingInfo(row.getRankingOrder(), row.getScore(),
                     product.id(), product.name(), product.brandName(), product.price()));
             } catch (CoreException e) {
                 if (e.getErrorType() != ErrorType.NOT_FOUND) throw e;

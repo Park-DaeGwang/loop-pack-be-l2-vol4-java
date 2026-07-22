@@ -28,8 +28,8 @@ public class MvProductRankWeeklyEntity {
     @Column(name = "product_id", columnDefinition = "BINARY(16)", nullable = false)
     private UUID productId;
 
-    @Column(name = "rank", nullable = false)
-    private int rank;
+    @Column(name = "ranking_order", nullable = false)
+    private int rankingOrder;
 
     @Column(name = "score", nullable = false)
     private double score;
@@ -45,7 +45,7 @@ public class MvProductRankWeeklyEntity {
 
     public MvProductRankWeeklyEntity(UUID productId, int rank, double score, int yearWeek, long batchId) {
         this.productId = productId;
-        this.rank = rank;
+        this.rankingOrder = rank;
         this.score = score;
         this.yearWeek = yearWeek;
         this.batchId = batchId;
@@ -53,7 +53,7 @@ public class MvProductRankWeeklyEntity {
     }
 
     public void updateRank(int rank) {
-        this.rank = rank;
+        this.rankingOrder = rank;
         this.updatedAt = ZonedDateTime.now();
     }
 }

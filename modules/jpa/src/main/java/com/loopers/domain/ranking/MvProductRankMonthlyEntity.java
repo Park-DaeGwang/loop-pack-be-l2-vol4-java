@@ -16,7 +16,7 @@ import java.util.UUID;
 
 @Entity
 @Table(name = "mv_product_rank_monthly",
-    uniqueConstraints = @UniqueConstraint(columnNames = {"product_id", "year_month", "batch_id"}))
+    uniqueConstraints = @UniqueConstraint(columnNames = {"product_id", "period_month", "batch_id"}))
 @Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class MvProductRankMonthlyEntity {
@@ -28,14 +28,14 @@ public class MvProductRankMonthlyEntity {
     @Column(name = "product_id", columnDefinition = "BINARY(16)", nullable = false)
     private UUID productId;
 
-    @Column(name = "rank", nullable = false)
-    private int rank;
+    @Column(name = "ranking_order", nullable = false)
+    private int rankingOrder;
 
     @Column(name = "score", nullable = false)
     private double score;
 
-    @Column(name = "year_month", nullable = false)
-    private int yearMonth;
+    @Column(name = "period_month", nullable = false)
+    private int periodMonth;
 
     @Column(name = "batch_id", nullable = false)
     private long batchId;
@@ -45,15 +45,15 @@ public class MvProductRankMonthlyEntity {
 
     public MvProductRankMonthlyEntity(UUID productId, int rank, double score, int yearMonth, long batchId) {
         this.productId = productId;
-        this.rank = rank;
+        this.rankingOrder = rank;
         this.score = score;
-        this.yearMonth = yearMonth;
+        this.periodMonth = yearMonth;
         this.batchId = batchId;
         this.updatedAt = ZonedDateTime.now();
     }
 
     public void updateRank(int rank) {
-        this.rank = rank;
+        this.rankingOrder = rank;
         this.updatedAt = ZonedDateTime.now();
     }
 }
