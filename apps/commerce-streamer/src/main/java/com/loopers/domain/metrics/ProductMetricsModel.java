@@ -4,21 +4,27 @@ import com.loopers.domain.BaseEntity;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.Table;
+import jakarta.persistence.UniqueConstraint;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 
+import java.time.LocalDate;
 import java.time.ZonedDateTime;
 import java.util.UUID;
 
 @Entity
-@Table(name = "product_metrics")
+@Table(name = "product_metrics",
+    uniqueConstraints = @UniqueConstraint(columnNames = {"product_id", "date"}))
 @Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class ProductMetricsModel extends BaseEntity {
 
-    @Column(name = "product_id", nullable = false, unique = true, updatable = false)
+    @Column(name = "product_id", nullable = false, updatable = false)
     private UUID productId;
+
+    @Column(name = "date", nullable = false, updatable = false)
+    private LocalDate date;
 
     @Column(name = "like_count", nullable = false)
     private long likeCount = 0;
@@ -32,8 +38,9 @@ public class ProductMetricsModel extends BaseEntity {
     @Column(name = "last_event_at")
     private ZonedDateTime lastEventAt;
 
-    public ProductMetricsModel(UUID productId) {
+    public ProductMetricsModel(UUID productId, LocalDate date) {
         this.productId = productId;
+        this.date = date;
     }
 
     /**

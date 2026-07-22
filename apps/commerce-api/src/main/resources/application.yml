@@ -79,6 +79,17 @@ resilience4j:
           - io.lettuce.core.RedisException
           - org.springframework.data.redis.RedisConnectionFailureException
           - org.springframework.data.redis.RedisSystemException
+      redisRanking:
+        sliding-window-type: COUNT_BASED
+        sliding-window-size: 10
+        minimum-number-of-calls: 5
+        failure-rate-threshold: 50
+        wait-duration-in-open-state: 30s          # 랭킹은 30s 대기 — 큐보다 복구 여유 줌
+        permitted-number-of-calls-in-half-open-state: 3
+        record-exceptions:
+          - io.lettuce.core.RedisException
+          - org.springframework.data.redis.RedisConnectionFailureException
+          - org.springframework.data.redis.RedisSystemException
 
 ---
 spring:

@@ -32,7 +32,8 @@ public class ProductV1Dto {
         Long price,
         String brandName,
         long likeCount,
-        String stockStatus
+        String stockStatus,
+        Long rank
     ) {
         public static ProductResponse from(ProductInfo info) {
             return new ProductResponse(
@@ -42,7 +43,8 @@ public class ProductV1Dto {
                 info.price(),
                 info.brandName(),
                 info.likeCount(),
-                info.availableQuantity() > 0 ? "IN_STOCK" : "OUT_OF_STOCK"
+                info.availableQuantity() > 0 ? "IN_STOCK" : "OUT_OF_STOCK",
+                info.rank()
             );
         }
     }

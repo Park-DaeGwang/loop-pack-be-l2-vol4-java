@@ -1,5 +1,6 @@
 package com.loopers.application.product;
 
+import com.loopers.application.ranking.RankingFacade;
 import com.loopers.domain.brand.BrandModel;
 import com.loopers.domain.brand.BrandService;
 import com.loopers.domain.product.ProductCacheDto;
@@ -15,6 +16,9 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.LocalDate;
+import java.time.ZoneId;
+import java.time.format.DateTimeFormatter;
 import java.util.UUID;
 
 @RequiredArgsConstructor
@@ -26,6 +30,7 @@ public class ProductFacade {
     private final ProductService productService;
     private final StockService stockService;
     private final ApplicationEventPublisher eventPublisher;
+    private final RankingFacade rankingFacade;
 
     /** 상품 등록 — 브랜드 검증 + 상품 저장 + 재고 초기화 */
     @Transactional
@@ -48,7 +53,9 @@ public class ProductFacade {
         ProductCacheDto snapshot = productService.getActiveSnapshot(id);
         StockModel stock = stockService.getByProductId(id);
         eventPublisher.publishEvent(new ProductViewedEvent(id));
-        return ProductInfo.from(snapshot, stock);
+        String today = LocalDate.now(ZoneId.systemDefault()).format(DateTimeFormatter.ofPattern("yyyyMMdd"));
+        Long rank = rankingFacade.getRank(today, id);
+        return ProductInfo.from(snapshot, stock, rank);
     }
 
     /** 어드민 목록 — 삭제된 상품 포함, brandId null이면 전체 */

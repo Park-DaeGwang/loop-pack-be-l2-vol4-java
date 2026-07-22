@@ -5,6 +5,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.loopers.confg.kafka.KafkaConfig;
 import com.loopers.domain.metrics.ProductMetricsModel;
 import com.loopers.domain.metrics.ProductMetricsService;
+import com.loopers.domain.ranking.RankingScoreService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
@@ -15,6 +16,10 @@ import org.springframework.kafka.support.Acknowledgment;
 import org.springframework.stereotype.Component;
 
 import java.nio.charset.StandardCharsets;
+import java.time.Instant;
+import java.time.ZoneId;
+import java.time.ZonedDateTime;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
 
@@ -26,35 +31,50 @@ public class OrderEventsConsumer {
     private static final String EVENT_TYPE_HEADER = "eventType";
 
     private final ProductMetricsService productMetricsService;
+    private final RankingScoreService rankingScoreService;
     private final ObjectMapper objectMapper;
 
     @KafkaListener(topics = "order-events", groupId = "order-metrics-consumer", containerFactory = KafkaConfig.BATCH_LISTENER)
     public void consume(List<ConsumerRecord<Object, Object>> records, Acknowledgment acknowledgment) {
+        List<RankingScoreService.BatchEvent> rankingEvents = new ArrayList<>();
+
         for (int i = 0; i < records.size(); i++) {
             ConsumerRecord<Object, Object> record = records.get(i);
             try {
-                process(record);
+                process(record, rankingEvents);
             } catch (Exception e) {
                 throw new BatchListenerFailedException(
                     "order-events 메시지 처리 실패 — offset=" + record.offset(), e, i);
             }
         }
+
+        try {
+            rankingScoreService.flushBatch(rankingEvents);
+        } catch (Exception e) {
+            log.warn("랭킹 배치 점수 갱신 실패 — best-effort, 무시함", e);
+        }
+
         acknowledgment.acknowledge();
     }
 
-    private void process(ConsumerRecord<Object, Object> record) throws Exception {
+    private void process(ConsumerRecord<Object, Object> record, List<RankingScoreService.BatchEvent> rankingEvents) throws Exception {
         String eventType = headerValue(record, EVENT_TYPE_HEADER);
         if (!"PaymentConfirmedEvent".equals(eventType)) {
             log.warn("알 수 없는 eventType — {}", eventType);
             return;
         }
         OrderEventPayload payload = objectMapper.readValue((String) record.value(), OrderEventPayload.class);
+        ZonedDateTime eventTime = ZonedDateTime.ofInstant(Instant.ofEpochMilli(record.timestamp()), ZoneId.of("Asia/Seoul"));
 
         productMetricsService.applyIfNotHandled(payload.eventId(), () -> {
             for (OrderItemPayload item : payload.items()) {
-                productMetricsService.applyToProductUnordered(item.productId(), ProductMetricsModel::incrementSales);
+                productMetricsService.applyToProductUnordered(item.productId(), eventTime, ProductMetricsModel::incrementSales);
             }
         });
+
+        for (OrderItemPayload item : payload.items()) {
+            rankingEvents.add(new RankingScoreService.BatchEvent("ORDER", item.productId(), item.quantity(), eventTime));
+        }
     }
 
     private String headerValue(ConsumerRecord<Object, Object> record, String key) {

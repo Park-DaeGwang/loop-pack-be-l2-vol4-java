@@ -130,6 +130,11 @@ erDiagram
         datetime used_at "사용일시 | NULL=미사용"
     }
 
+    ranking_weight["랭킹 가중치 (ranking_weight)"] {
+        varchar event_type PK "이벤트 유형 (VIEW/LIKE/UNLIKE/ORDER) | PK"
+        double weight "점수 가중치 (기본: VIEW=0.1, LIKE=0.2, UNLIKE=-0.2, ORDER=0.7)"
+    }
+
     users ||--o{ orders : "회원은 주문을 여러 개 할 수 있다"
     users ||--o{ likes : "회원은 좋아요를 여러 개 누를 수 있다"
     brands ||--o{ products : "브랜드는 상품을 여러 개 가진다"
@@ -142,6 +147,15 @@ erDiagram
     users ||--o{ user_coupons : "회원은 쿠폰을 여러 개 보유할 수 있다"
     user_coupons ||--o| orders : "발급 쿠폰은 최대 1개 주문에 사용된다"
 ```
+
+### ranking_weight
+- `event_type`: PK(문자열). VIEW / LIKE / UNLIKE / ORDER 4가지 이벤트 유형
+- `weight`: 이벤트 1회당 부여하는 점수 가중치. 음수 가능(UNLIKE = -0.2)
+- 별도 FK 없음. Redis ZSET 점수 계산에만 참조되는 설정 테이블
+- 관리자 API(`PUT /api-admin/v1/rankings/weights/{eventType}`)로 변경. 변경 시 Redis 캐시 즉시 무효화
+- Redis에 존재하지 않으면: 기본값(VIEW=0.1, LIKE=0.2, UNLIKE=-0.2, ORDER=0.7) 사용
+
+---
 
 ## 테이블 설계 상세
 

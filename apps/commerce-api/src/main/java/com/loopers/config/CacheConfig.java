@@ -11,6 +11,7 @@ import org.springframework.core.Ordered;
 import org.springframework.data.redis.cache.RedisCacheConfiguration;
 import org.springframework.data.redis.cache.RedisCacheManager;
 import org.springframework.data.redis.connection.RedisConnectionFactory;
+import org.springframework.data.redis.serializer.GenericJackson2JsonRedisSerializer;
 import org.springframework.data.redis.serializer.Jackson2JsonRedisSerializer;
 import org.springframework.data.redis.serializer.RedisSerializationContext;
 import org.springframework.data.redis.serializer.StringRedisSerializer;
@@ -24,6 +25,7 @@ public class CacheConfig {
 
     // 필드 타입 변경 시 버전 올릴 것 — 기존 캐시 자연 소멸(TTL) 후 새 버전으로 재적재
     public static final String PRODUCT_CACHE = "product:v1";
+    public static final String RANKING_WEIGHT_CACHE = "ranking-weight:v1";
 
     @Bean
     public RedisCacheManager cacheManager(RedisConnectionFactory connectionFactory) {
@@ -44,8 +46,16 @@ public class CacheConfig {
                 .serializeValuesWith(RedisSerializationContext.SerializationPair
                         .fromSerializer(productSerializer));
 
+        RedisCacheConfiguration weightCacheConfig = RedisCacheConfiguration.defaultCacheConfig()
+                .entryTtl(Duration.ofHours(1))
+                .serializeKeysWith(RedisSerializationContext.SerializationPair
+                        .fromSerializer(new StringRedisSerializer()))
+                .serializeValuesWith(RedisSerializationContext.SerializationPair
+                        .fromSerializer(new GenericJackson2JsonRedisSerializer()));
+
         return RedisCacheManager.builder(connectionFactory)
                 .withCacheConfiguration(PRODUCT_CACHE, productCacheConfig)
+                .withCacheConfiguration(RANKING_WEIGHT_CACHE, weightCacheConfig)
                 .build();
     }
 }

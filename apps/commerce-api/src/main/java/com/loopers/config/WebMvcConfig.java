@@ -53,7 +53,8 @@ public class WebMvcConfig implements WebMvcConfigurer {
                 "/api-admin/v1/products/**",
                 "/api-admin/v1/orders/**",
                 "/api-admin/v1/coupons/**",
-                "/api-admin/v1/queue/**"
+                "/api-admin/v1/queue/**",
+                "/api-admin/v1/rankings/**"
             );
     }
 }

@@ -1,0 +1,29 @@
+### 일간 랭킹 조회 (상위 20개, 1페이지)
+GET {{commerce-api}}/api/v1/rankings?date=20260716&size=20&page=1
+
+### 일간 랭킹 조회 (2페이지)
+GET {{commerce-api}}/api/v1/rankings?date=20260716&size=20&page=2
+
+### 시간별 랭킹 조회 (HOURLY — 특정 시간대)
+GET {{commerce-api}}/api/v1/rankings?type=HOURLY&date=2026071619&size=20&page=1
+
+### 랭킹 가중치 수정 — VIEW
+PUT {{commerce-api}}/api-admin/v1/rankings/weights/VIEW
+X-Loopers-Ldap: loopers.admin
+Content-Type: application/json
+
+{"weight": 0.2}
+
+### 랭킹 가중치 수정 — LIKE
+PUT {{commerce-api}}/api-admin/v1/rankings/weights/LIKE
+X-Loopers-Ldap: loopers.admin
+Content-Type: application/json
+
+{"weight": 0.5}
+
+### 랭킹 가중치 수정 — ORDER
+PUT {{commerce-api}}/api-admin/v1/rankings/weights/ORDER
+X-Loopers-Ldap: loopers.admin
+Content-Type: application/json
+
+{"weight": 1.0}
