@@ -17,6 +17,9 @@ public enum RankingType {
     }
 
     public String toKey(String date) {
+        if (keyPrefix == null) {
+            throw new UnsupportedOperationException("RankingType." + name() + " does not support Redis key");
+        }
         return keyPrefix + date;
     }
 }

@@ -51,9 +51,4 @@ public class MvProductRankWeeklyEntity {
         this.batchId = batchId;
         this.updatedAt = ZonedDateTime.now();
     }
-
-    public void updateRank(int rank) {
-        this.rankingOrder = rank;
-        this.updatedAt = ZonedDateTime.now();
-    }
 }
