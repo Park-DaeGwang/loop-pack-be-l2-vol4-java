@@ -8,10 +8,6 @@ import org.springframework.data.jpa.repository.Query;
 public interface MvProductRankWeeklyJpaRepository extends JpaRepository<MvProductRankWeeklyEntity, Long> {
 
     @Modifying
-    @Query("DELETE FROM MvProductRankWeeklyEntity e WHERE e.yearWeek = :yearWeek AND e.batchId = :batchId")
-    void deleteByYearWeekAndBatchId(int yearWeek, long batchId);
-
-    @Modifying
     @Query("DELETE FROM MvProductRankWeeklyEntity e WHERE e.yearWeek = :yearWeek AND e.batchId != :activeBatchId")
     void deleteOldBatches(int yearWeek, long activeBatchId);
 }
