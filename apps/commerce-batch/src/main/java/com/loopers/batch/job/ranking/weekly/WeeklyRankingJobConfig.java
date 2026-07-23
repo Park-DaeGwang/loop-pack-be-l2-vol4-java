@@ -110,7 +110,7 @@ public class WeeklyRankingJobConfig {
     ) {
         LocalDate date  = LocalDate.parse(targetDate, DATE_FORMAT);
         LocalDate start = date.with(DayOfWeek.MONDAY);
-        LocalDate end   = date.minusDays(1);
+        LocalDate end   = date;
 
         return new JdbcCursorItemReaderBuilder<ProductMetricsSummary>()
             .name("weeklyRankingReader")

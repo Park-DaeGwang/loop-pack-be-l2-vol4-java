@@ -108,7 +108,7 @@ public class MonthlyRankingJobConfig {
     ) {
         LocalDate date  = LocalDate.parse(targetDate, DATE_FORMAT);
         LocalDate start = date.withDayOfMonth(1);
-        LocalDate end   = date.minusDays(1);
+        LocalDate end   = date;
 
         return new JdbcCursorItemReaderBuilder<ProductMetricsSummary>()
             .name("monthlyRankingReader")
