@@ -59,13 +59,13 @@ Spring Boot 기반 이커머스 백엔드. 재고/쿠폰 동시성 제어, 인�
 - 콜백 미수신 대응: 재결제 시도 시 PG 선조회 + 5분 주기 스케줄러 이중 보완으로 PENDING 주문 자동 복구
 
 **2. Redis 토큰버킷 기반 주문 대기열**
-- admission 페이스 제어 + Redis Lua 기반 전역 토큰버킷의 2단 방어로 주문 몰림 완화 구조 설계
-- Lua 스크립트로 토큰 차감과 허용 여부 판단을 원자적으로 처리해 분산 환경에서 레이스 컨디션 없이 전역 처리율 제어
+- 스케줄러 1초마다 batchSize개씩 대기열에서 꺼내 입장 토큰 발급(admission 페이스 제어) + Redisson RateLimiter tryAcquire()로 TPS 상한 제어하는 2단 방어 구조
+- 토큰은 주문 완료 시에만 삭제 → 429 거부나 주문 실패 시 토큰 유지, 자연스러운 재시도 가능
 
 **3. Kafka 기반 이벤트 실시간 랭킹**
 - 좋아요·주문 도메인 이벤트를 Kafka로 발행(commerce-api)하고 commerce-streamer가 소비해 Redis/MySQL에 반영하는 이벤트 기반 랭킹 파이프라인 구축
 - 주문 알림 이벤트는 Outbox 패턴으로 발행 유실까지 방지, 좋아요 이벤트는 AFTER_COMMIT 발행으로 롤백 트랜잭션의 팬텀 이벤트를 차단하는 등 도메인 중요도에 따라 발행 신뢰성 수준을 차등 적용
-- Redis Lua 스크립트로 dedup 체크와 ZINCRBY를 원자적으로 처리하고 DB event_key UNIQUE 제약을 이중 방어선으로 둬 멱등성 확보
+- eventId를 PK로 하는 event_handled 테이블에 처리 완료 시 insert — Kafka at-least-once로 중복 소비 시 PK 충돌로 차단해 product_metrics 이중 반영 방지. Redis 랭킹은 best-effort(실패 시 예외 무시, offset 커밋)
 
 **4. Spring Batch 주간/월간 랭킹 집계**
 - weekly MV에서 월간 합산 시 TOP 100 경계 누락 리스크를 파악하고, product_metrics 직접 독립 집계로 정확도 확보
@@ -75,7 +75,7 @@ Spring Boot 기반 이커머스 백엔드. 재고/쿠폰 동시성 제어, 인�
 ### Trouble Shooting
 
 **1. 동시성 제어 및 검증**
-- 멀티 아이템 주문 데드락을 재현 테스트로 확인하고, lock 획득 순서를 stockId 오름차순으로 고정해 순환 대기 조건 자체를 제거
+- 멀티 아이템 주문 재고 예약을 SELECT FOR UPDATE 없이 조건부 UPDATE(SET reserved += qty WHERE total - reserved >= qty)로 구현해 데드락 발생 구조 자체를 제거
 - 선착순 쿠폰 발급은 재고 100개에 200명 동시 요청 시 정확히 100명만 성공하도록, 쿠폰 1회성 사용 제약은 TOCTOU 레이스 컨디션을 DB UNIQUE 제약 + DataIntegrityViolationException catch로 원자적으로 방어
 
 **2. 인덱스 튜닝 및 옵티마이저 분석**
